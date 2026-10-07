@@ -47,3 +47,13 @@ CUSTOM_OPENAI_API_KEY = os.getenv('CUSTOM_OPENAI_API_KEY', 'ollama') # Unsed for
 CUSTOM_OPENAI_API_BASE = os.getenv('CUSTOM_OPENAI_API_BASE', 'http://localhost:11434/v1') # Use OLLAMA_HOST env to change binding IP and Port.
 CUSTOM_OPENAI_MODEL = os.getenv('CUSTOM_OPENAI_MODEL', '') # e.g "qwen2.5:7b". Make sure to pull and run it before use.
 CUSTOM_OPENAI_MODEL_CONF = os.getenv('CUSTOM_OPENAI_MODEL_CONF', '') # e.g "qwen2".
+# Optional request parameters for reasoning models / OpenAI-compatible providers (e.g. z.ai GLM)
+CUSTOM_OPENAI_REASONING_EFFORT = os.getenv('CUSTOM_OPENAI_REASONING_EFFORT', '') # e.g "max" | "high" | "low"
+CUSTOM_OPENAI_THINKING = os.getenv('CUSTOM_OPENAI_THINKING', '') # e.g "enabled" | "disabled" (z.ai thinking.type)
+CUSTOM_OPENAI_MAX_TOKENS = os.getenv('CUSTOM_OPENAI_MAX_TOKENS', '') # override max_tokens (default: _MAX_TOKENS // 2)
+CUSTOM_OPENAI_TEMPERATURE = os.getenv('CUSTOM_OPENAI_TEMPERATURE', '') # override temperature (default: chatgpt config / 0.5)
+CUSTOM_OPENAI_TIMEOUT = os.getenv('CUSTOM_OPENAI_TIMEOUT', '') # per-request timeout seconds (default: 40)
+try:
+    CUSTOM_OPENAI_MAX_CONCURRENCY = int(os.getenv('CUSTOM_OPENAI_MAX_CONCURRENCY') or 5) # LLM 동시 요청 상한 (계정 한계 5, 429 백프레셔 시작값)
+except ValueError:
+    CUSTOM_OPENAI_MAX_CONCURRENCY = 5
