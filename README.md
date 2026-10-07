@@ -12,6 +12,24 @@ Last Updated: 2025/05/10
 > [中文说明](README_CN.md) | [Changelog](CHANGELOG_CN.md) \
 > Welcome to join our Discord <https://discord.gg/Ak8APNy4vb>
 
+## 🇰🇷 Fork 운영 스택 (JP→KR 대량 번역 라인)
+
+이 워크스페이스는 upstream을 **상시 운영 중인 일본어→한국어 만화 대량 번역 파이프라인**으로 개조한 fork다. 아래 일반 문서는 upstream 것을 그대로 따르고, 운영 스택은 이 섹션과 [GUI_API.md](GUI_API.md)를 참고한다.
+
+### 구성
+
+- **배치 대시보드** — `./startup.sh`로 기동, `http://127.0.0.1:8787` (`translate_gui.py`). 폴더 탐색 → 큐 추가 → 진행률/실시간 로그/취소. 모든 기능은 HTTP API로도 호출 가능
+- **2-패스 파이프라인** — Pass A(`mode=pre`, `configs/pass_a.toml`): GPU로 검출·OCR·인페인팅만 수행해 `tmp/gpu_pre/`에 페이지 캐시. Pass B(`mode=finish`, `manga_translator/mode/finish.py`): 독립 CPU 컨테이너에서 LLM 번역·렌더링만 수행. `mode=full`은 기존 일괄 파이프라인. pre 완료 시 finish 자동 체이닝
+- **GPU 컨테이너** — `demo/doc/docker-compose-web-with-gpu.yml` (gpu1~5 정의). 대시보드에서 목표 개수 조절(1~5, 기본 3)·기동·반납, 무작업 5분 지속 시 자동 GPU 반납 후 작업 발생 시 목표 개수만큼 재기동
+- **번역 LLM** — `custom_openai` translator (z.ai GLM 계열, `.env`의 `OPENAI_COMPATIBLE_*` 키). 번역 거부 응답 감지·재시도, 번역문 길이 하드캡(원문의 2배 이상 시 재시도), 429 적응 동시성 제어 내장
+- **한국어 폰트** — `fonts/SUIT-*.ttf`(렌더 기본), `fonts/BM*.ttf`
+
+### 운영 규칙
+
+- 실행 중인 번역 프로세스·컨테이너는 임의 종료 금지 — 종료는 반드시 `./shutdown.sh` 절차로 (완료된 페이지까지 저장 후 중단)
+- `data/`, `translated/`, `tmp/`, `result/`, `.env` 등 운영 데이터는 커밋 대상 아님 (`.gitignore` 처리)
+- 끊긴 작업 이어하기: `./startup.sh --resume <날짜폴더...>` (완료 권 자동 스킵 + finish 자동 체이닝)
+
 This project aims to translate images that are unlikely to be professionally translated, such as comics/images on various group chats and image boards, making it possible for Japanese novices like me to understand the content.
 It mainly supports Japanese, but also supports Simplified and Traditional Chinese, English and 20 other minor languages.
 Supports image repair (text removal) and typesetting.

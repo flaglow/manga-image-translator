@@ -15,7 +15,7 @@ test/testdata
 .idea
 pyvenv.cfg
 Scripts
-Lib
+/Lib
 include
 share
 .DS_Store
@@ -29,7 +29,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -51,3 +51,12 @@ MANIFEST
 # SSL Used for running server locally
 cert.pem
 key.pem
+
+# 운영 데이터/상태 — 커밋 제외 (AGENTS.md 참고)
+data/
+translated/
+tmp/
+.omc/
+.omx/
+.gpu_count
+nohup.out

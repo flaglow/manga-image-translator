@@ -1581,48 +1581,53 @@ class MangaTranslator:
             
         # 批量翻译处理
         logger.debug('Starting batch translation phase...')
-        try:
-            if self.batch_concurrent:
-                logger.info(f'Using concurrent mode for batch translation')
-                translated_contexts = await self._concurrent_translate_contexts(pre_translation_contexts)
-            else:
-                logger.debug(f'Using standard batch mode for translation')
-                translated_contexts = await self._batch_translate_contexts(pre_translation_contexts, batch_size)
-        except MemoryError as e:
-            logger.error(f'Memory error in batch translation: {e}')
-            if not memory_optimization_enabled:
-                logger.error('Consider enabling memory optimization')
-                raise
-                
-            logger.warning('Batch translation failed, switching to individual page translation mode...')
-            # 降级到每页逐个翻译
-            translated_contexts = []
-            for ctx, config in pre_translation_contexts:
-                try:
-                    if ctx.text_regions:  # 检查text_regions是否不为None且不为空
-                        # 对整页进行翻译处理
-                        translated_texts = await self._batch_translate_texts([region.text for region in ctx.text_regions], config, ctx)
-                        
-                        # 将翻译结果应用到各个region
-                        for region, translation in zip(ctx.text_regions, translated_texts):
-                            region.translation = translation
-                            region.target_lang = config.translator.target_lang
-                            region._alignment = config.render.alignment
-                            region._direction = config.render.direction
-                    translated_contexts.append((ctx, config))
-                    
-                    # 每页翻译后都清理内存
-                    import gc
-                    gc.collect()
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    elif torch.xpu.is_available():
-                        torch.xpu.empty_cache()
-                        
-                except Exception as individual_error:
-                    logger.error(f'Individual page translation failed: {individual_error}')
-                    translated_contexts.append((ctx, config))
-        
+        if getattr(self, 'preprocess_dump', False):
+            # Pass A: 번역 단계 스킵 (translator=none 배치 필터 우회 + API 미호출)
+            logger.info('Preprocess-dump mode: skipping translation phase')
+            translated_contexts = pre_translation_contexts
+        else:
+            try:
+                if self.batch_concurrent:
+                    logger.info(f'Using concurrent mode for batch translation')
+                    translated_contexts = await self._concurrent_translate_contexts(pre_translation_contexts)
+                else:
+                    logger.debug(f'Using standard batch mode for translation')
+                    translated_contexts = await self._batch_translate_contexts(pre_translation_contexts, batch_size)
+            except MemoryError as e:
+                logger.error(f'Memory error in batch translation: {e}')
+                if not memory_optimization_enabled:
+                    logger.error('Consider enabling memory optimization')
+                    raise
+
+                logger.warning('Batch translation failed, switching to individual page translation mode...')
+                # 降级到每页逐个翻译
+                translated_contexts = []
+                for ctx, config in pre_translation_contexts:
+                    try:
+                        if ctx.text_regions:  # 检查text_regions是否不为None且不为空
+                            # 对整页进行翻译处理
+                            translated_texts = await self._batch_translate_texts([region.text for region in ctx.text_regions], config, ctx)
+
+                            # 将翻译结果应用到各个region
+                            for region, translation in zip(ctx.text_regions, translated_texts):
+                                region.translation = translation
+                                region.target_lang = config.translator.target_lang
+                                region._alignment = config.render.alignment
+                                region._direction = config.render.direction
+                        translated_contexts.append((ctx, config))
+
+                        # 每页翻译后都清理内存
+                        import gc
+                        gc.collect()
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
+                        elif torch.xpu.is_available():
+                            torch.xpu.empty_cache()
+
+                    except Exception as individual_error:
+                        logger.error(f'Individual page translation failed: {individual_error}')
+                        translated_contexts.append((ctx, config))
+
         # 完成翻译后的处理
         logger.debug('Starting post-processing phase...')
         for i, (ctx, config) in enumerate(translated_contexts):
@@ -1648,7 +1653,7 @@ class MangaTranslator:
 
         # 批处理完成后，保存所有页面的最终翻译结果
         for ctx in results:
-            if ctx.text_regions:
+            if ctx.text_regions and not getattr(self, 'preprocess_dump', False):
                 # 汇总本页翻译，供下一页做上文
                 page_translations = {r.text_raw if hasattr(r, "text_raw") else r.text: r.translation
                                      for r in ctx.text_regions}
@@ -2539,12 +2544,13 @@ class MangaTranslator:
         try:
             ctx.img_inpainted = await self._run_inpainting(config, ctx)
 
-        except Exception as e:  
-            logger.error(f"Error during inpainting:\n{traceback.format_exc()}")  
-            if not self.ignore_errors:  
+        except Exception as e:
+            logger.error(f"Error during inpainting:\n{traceback.format_exc()}")
+            if not self.ignore_errors:
                 raise
             else:
                 ctx.img_inpainted = ctx.img_rgb
+                ctx.inpaint_failed = True
         ctx.gimp_mask = np.dstack((cv2.cvtColor(ctx.img_inpainted, cv2.COLOR_RGB2BGR), ctx.mask))
 
         if self.verbose:

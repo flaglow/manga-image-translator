@@ -306,9 +306,13 @@ class Page:
 					panels_to_remove.append(p1)
 					p2 = p2.merge(p1)
 
-		for p in set(panels_to_remove):
-			if p in self.panels:
-				self.panels.remove(p)
+		# for p in set(panels_to_remove):
+        #     if p in self.panels:
+        #         self.panels.remove(p)
+
+		# Remove by identity to avoid fuzzy __eq__/__hash__ pitfalls on Panel
+		to_remove_ids = set(map(id, panels_to_remove))
+		self.panels = [p for p in self.panels if id(p) not in to_remove_ids]
 
 		Debug.add_step('Merge panels', self.get_infos())
 

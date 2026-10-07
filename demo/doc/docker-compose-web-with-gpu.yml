@@ -1,13 +1,26 @@
 services:
-  manga_image_translator:
+  manga_image_translator1:
     image: zyddnys/manga-image-translator:main
-    container_name: manga_image_translator_gpu
+    user: "1000:1000"
+    container_name: manga_image_translator_gpu1
     entrypoint: python
     command: server/main.py --verbose --start-instance --host=0.0.0.0 --port=5003 --use-gpu
     volumes:
       - ./../../result:/app/result
-      - ./../../server/main.py:/app/server/main.py
-      - ./../../server/instance.py:/app/server/instance.py      
+      - ./../../data:/app/data
+      - ./../../translated:/app/translated
+      # - ./../../server/main.py:/app/server/main.py
+      - ./../../server:/app/server
+      - ./../../configs:/app/configs
+      - ./../../fonts:/app/fonts
+      - ./../../manga_translator/translators/custom_openai.py:/app/manga_translator/translators/custom_openai.py
+      - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
+      - ./../../manga_translator/args.py:/app/manga_translator/args.py
+      - ./../../tmp:/app/tmp
+      - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
+      - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
+      - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
+      # - ./../../server/instance.py:/app/server/instance.py      
     ports:
       - 5003:5003
     ipc: host
@@ -17,49 +30,186 @@ services:
           devices:
             - capabilities: [gpu] 
     environment:  
-      # baidu  
-      BAIDU_APP_ID: ''  
-      BAIDU_SECRET_KEY: ''  
-      
-      # youdao  
-      YOUDAO_APP_KEY: ''  
-      YOUDAO_SECRET_KEY: ''  
-      
-      # deepl  
-      DEEPL_AUTH_KEY: ''  
-      
-      # openai/ChatGPT  
-      OPENAI_API_KEY: ''
-      OPENAI_API_BASE: ''
-      OPENAI_MODEL: ''
-      OPENAI_HTTP_PROXY: ''
-      
-      # glossary
-      OPENAI_GLOSSARY_PATH: './dict/mit_glossary.txt'
-      
-      # Groq  
-      GROQ_API_KEY: ''  
-      GROQ_MODEL: 'mixtral-8x7b-32768'  
-      
-      # sakura  
-      SAKURA_API_BASE: 'http://127.0.0.1:8080/v1'  
-      SAKURA_VERSION: '0.9'  
-      SAKURA_DICT_PATH: './sakura_dict.txt'  
-      
-      # Caiyun  
-      CAIYUN_TOKEN: ''  
-      
-      # Gemini  
-      GEMINI_API_KEY: ''  
-      GEMINI_MODEL: 'gemini-1.5-flash-002'  
-      
-      # DeepSeek  
-      DEEPSEEK_API_KEY: ''  
-      DEEPSEEK_API_BASE: 'https://api.deepseek.com'  
-      DEEPSEEK_MODEL: 'deepseek-chat'  
-      
-      # Custom OpenAI compatible API  
-      CUSTOM_OPENAI_API_KEY: 'ollama'  
-      CUSTOM_OPENAI_API_BASE: 'http://localhost:11434/v1'  
-      CUSTOM_OPENAI_MODEL: ''  
-      CUSTOM_OPENAI_MODEL_CONF: ''        
+
+      # custom OpenAI-compatible API
+      CUSTOM_OPENAI_API_KEY: ${OPENAI_COMPATIBLE_API_KEY_1}
+      CUSTOM_OPENAI_API_BASE: ${OPENAI_COMPATIBLE_BASE_URL}
+      CUSTOM_OPENAI_MODEL: ${OPENAI_COMPATIBLE_MODEL}
+      CUSTOM_OPENAI_REASONING_EFFORT: ${OPENAI_COMPATIBLE_REASONING_EFFORT:-}
+      CUSTOM_OPENAI_THINKING: ${OPENAI_COMPATIBLE_THINKING:-}
+      CUSTOM_OPENAI_MAX_TOKENS: ${OPENAI_COMPATIBLE_MAX_TOKENS:-}
+      CUSTOM_OPENAI_TEMPERATURE: ${OPENAI_COMPATIBLE_TEMPERATURE:-}
+      CUSTOM_OPENAI_MAX_CONCURRENCY: '2'
+      CUSTOM_OPENAI_TIMEOUT: ${OPENAI_COMPATIBLE_TIMEOUT:-}
+
+  manga_image_translator2:
+    image: zyddnys/manga-image-translator:main
+    user: "1000:1000"
+    container_name: manga_image_translator_gpu2
+    entrypoint: python
+    command: server/main.py --verbose --start-instance --host=0.0.0.0 --port=5003 --use-gpu
+    volumes:
+      - ./../../result:/app/result
+      - ./../../data:/app/data
+      - ./../../translated:/app/translated
+      # - ./../../server/main.py:/app/server/main.py
+      - ./../../server:/app/server
+      - ./../../configs:/app/configs
+      - ./../../fonts:/app/fonts
+      - ./../../manga_translator/translators/custom_openai.py:/app/manga_translator/translators/custom_openai.py
+      - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
+      - ./../../manga_translator/args.py:/app/manga_translator/args.py
+      - ./../../tmp:/app/tmp
+      - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
+      - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
+      - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
+      # - ./../../server/instance.py:/app/server/instance.py      
+    ports:
+      - 5004:5003
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu] 
+    environment:  
+
+      # custom OpenAI-compatible API
+      CUSTOM_OPENAI_API_KEY: ${OPENAI_COMPATIBLE_API_KEY_2}
+      CUSTOM_OPENAI_API_BASE: ${OPENAI_COMPATIBLE_BASE_URL}
+      CUSTOM_OPENAI_MODEL: ${OPENAI_COMPATIBLE_MODEL}
+      CUSTOM_OPENAI_REASONING_EFFORT: ${OPENAI_COMPATIBLE_REASONING_EFFORT:-}
+      CUSTOM_OPENAI_THINKING: ${OPENAI_COMPATIBLE_THINKING:-}
+      CUSTOM_OPENAI_MAX_TOKENS: ${OPENAI_COMPATIBLE_MAX_TOKENS:-}
+      CUSTOM_OPENAI_TEMPERATURE: ${OPENAI_COMPATIBLE_TEMPERATURE:-}
+      CUSTOM_OPENAI_MAX_CONCURRENCY: '2'
+      CUSTOM_OPENAI_TIMEOUT: ${OPENAI_COMPATIBLE_TIMEOUT:-}
+
+  # 3번 인스턴스 — glm-5.3-flash + reasoning_effort low (변형 C)
+  manga_image_translator3:
+    image: zyddnys/manga-image-translator:main
+    user: "1000:1000"
+    container_name: manga_image_translator_gpu3
+    entrypoint: python
+    command: server/main.py --verbose --start-instance --host=0.0.0.0 --port=5003 --use-gpu
+    volumes:
+      - ./../../result:/app/result
+      - ./../../data:/app/data
+      - ./../../translated:/app/translated
+      - ./../../server:/app/server
+      - ./../../configs:/app/configs
+      - ./../../fonts:/app/fonts
+      - ./../../manga_translator/translators/custom_openai.py:/app/manga_translator/translators/custom_openai.py
+      - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
+      - ./../../manga_translator/args.py:/app/manga_translator/args.py
+      - ./../../tmp:/app/tmp
+      - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
+      - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
+      - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
+    ports:
+      - 5005:5003
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+      # custom OpenAI-compatible API — flash, effort low 고정 (동시성은 적응형 429 백프레셔가 제어)
+      CUSTOM_OPENAI_API_KEY: ${OPENAI_COMPATIBLE_API_KEY_1}
+      CUSTOM_OPENAI_API_BASE: ${OPENAI_COMPATIBLE_BASE_URL}
+      CUSTOM_OPENAI_MODEL: glm-5.3-flash
+      CUSTOM_OPENAI_REASONING_EFFORT: 'low'
+      CUSTOM_OPENAI_THINKING: ''
+      CUSTOM_OPENAI_MAX_TOKENS: ''
+      CUSTOM_OPENAI_TEMPERATURE: ''
+      CUSTOM_OPENAI_MAX_CONCURRENCY: '1'
+      CUSTOM_OPENAI_TIMEOUT: '120'
+
+  # 4번 인스턴스 — gpu1과 동일 구성 (포트만 5006)
+  manga_image_translator4:
+    image: zyddnys/manga-image-translator:main
+    user: "1000:1000"
+    container_name: manga_image_translator_gpu4
+    entrypoint: python
+    command: server/main.py --verbose --start-instance --host=0.0.0.0 --port=5003 --use-gpu
+    volumes:
+      - ./../../result:/app/result
+      - ./../../data:/app/data
+      - ./../../translated:/app/translated
+      # - ./../../server/main.py:/app/server/main.py
+      - ./../../server:/app/server
+      - ./../../configs:/app/configs
+      - ./../../fonts:/app/fonts
+      - ./../../manga_translator/translators/custom_openai.py:/app/manga_translator/translators/custom_openai.py
+      - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
+      - ./../../manga_translator/args.py:/app/manga_translator/args.py
+      - ./../../tmp:/app/tmp
+      - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
+      - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
+      - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
+      # - ./../../server/instance.py:/app/server/instance.py
+    ports:
+      - 5006:5003
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+
+      # custom OpenAI-compatible API
+      CUSTOM_OPENAI_API_KEY: ${OPENAI_COMPATIBLE_API_KEY_1}
+      CUSTOM_OPENAI_API_BASE: ${OPENAI_COMPATIBLE_BASE_URL}
+      CUSTOM_OPENAI_MODEL: ${OPENAI_COMPATIBLE_MODEL}
+      CUSTOM_OPENAI_REASONING_EFFORT: ${OPENAI_COMPATIBLE_REASONING_EFFORT:-}
+      CUSTOM_OPENAI_THINKING: ${OPENAI_COMPATIBLE_THINKING:-}
+      CUSTOM_OPENAI_MAX_TOKENS: ${OPENAI_COMPATIBLE_MAX_TOKENS:-}
+      CUSTOM_OPENAI_TEMPERATURE: ${OPENAI_COMPATIBLE_TEMPERATURE:-}
+      CUSTOM_OPENAI_MAX_CONCURRENCY: '2'
+      CUSTOM_OPENAI_TIMEOUT: ${OPENAI_COMPATIBLE_TIMEOUT:-}
+
+  # 5번 인스턴스 — gpu1과 동일 구성 (포트만 5007)
+  manga_image_translator5:
+    image: zyddnys/manga-image-translator:main
+    user: "1000:1000"
+    container_name: manga_image_translator_gpu5
+    entrypoint: python
+    command: server/main.py --verbose --start-instance --host=0.0.0.0 --port=5003 --use-gpu
+    volumes:
+      - ./../../result:/app/result
+      - ./../../data:/app/data
+      - ./../../translated:/app/translated
+      # - ./../../server/main.py:/app/server/main.py
+      - ./../../server:/app/server
+      - ./../../configs:/app/configs
+      - ./../../fonts:/app/fonts
+      - ./../../manga_translator/translators/custom_openai.py:/app/manga_translator/translators/custom_openai.py
+      - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
+      - ./../../manga_translator/args.py:/app/manga_translator/args.py
+      - ./../../tmp:/app/tmp
+      - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
+      - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
+      - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
+      # - ./../../server/instance.py:/app/server/instance.py
+    ports:
+      - 5007:5003
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    environment:
+
+      # custom OpenAI-compatible API
+      CUSTOM_OPENAI_API_KEY: ${OPENAI_COMPATIBLE_API_KEY_1}
+      CUSTOM_OPENAI_API_BASE: ${OPENAI_COMPATIBLE_BASE_URL}
+      CUSTOM_OPENAI_MODEL: ${OPENAI_COMPATIBLE_MODEL}
+      CUSTOM_OPENAI_REASONING_EFFORT: ${OPENAI_COMPATIBLE_REASONING_EFFORT:-}
+      CUSTOM_OPENAI_THINKING: ${OPENAI_COMPATIBLE_THINKING:-}
+      CUSTOM_OPENAI_MAX_TOKENS: ${OPENAI_COMPATIBLE_MAX_TOKENS:-}
+      CUSTOM_OPENAI_TEMPERATURE: ${OPENAI_COMPATIBLE_TEMPERATURE:-}
+      CUSTOM_OPENAI_MAX_CONCURRENCY: '2'
+      CUSTOM_OPENAI_TIMEOUT: ${OPENAI_COMPATIBLE_TIMEOUT:-}

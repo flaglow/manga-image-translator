@@ -2,8 +2,9 @@ import json
 import os
 import gc
 import copy
+import pickle
 from typing import Union, List
-import time  
+import time
 
 from PIL import Image
 import psutil
@@ -84,6 +85,7 @@ class MangaTranslatorLocal(MangaTranslator):
         self.prep_manual = params.get('prep_manual', None)
         self.batch_size = params.get('batch_size', 1)
         self.disable_memory_optimization = params.get('disable_memory_optimization', False)
+        self.preprocess_dump = params.get('preprocess_dump', False)
 
     async def translate_path(self, path: str, dest: str = None, params: dict[str, Union[int, str]] = None):
         """
@@ -126,6 +128,9 @@ class MangaTranslatorLocal(MangaTranslator):
                 file_ext = 'jpg'
             elif params.get('format') != 'jpg':
                 raise ValueError('--save-quality of lower than 100 is only supported for .jpg files')
+        # Pass A: force png output so the cache is always lossless
+        if getattr(self, 'preprocess_dump', False):
+            file_ext = 'png'
 
         if os.path.isfile(path):
             # Determine destination file path
@@ -330,6 +335,18 @@ class MangaTranslatorLocal(MangaTranslator):
         with open(text_output_file, 'a', encoding='utf-8') as f:
             f.write(s)
 
+    def _dump_preprocess_cache(self, ctx, output_dest):
+        if getattr(ctx, 'inpaint_failed', False):
+            return
+        regions = list(ctx.text_regions) if ctx.text_regions else []
+        if regions and getattr(ctx, 'img_inpainted', None) is None:
+            return
+        pkl_path = os.path.splitext(output_dest)[0] + '.pkl'
+        with open(pkl_path + '.tmp', 'wb') as f:
+            pickle.dump({'version': 1, 'regions': regions}, f, protocol=4)
+        os.replace(pkl_path + '.tmp', pkl_path)
+        logger.info(f'Preprocess cache dumped: "{pkl_path}" ({len(regions)} regions)')
+
     async def _translate_folder_batch(self, path: str, dest: str, params: dict, config: Config, file_ext: str):
         """使用批量处理方式翻译文件夹中的图片"""
         
@@ -359,8 +376,12 @@ class MangaTranslatorLocal(MangaTranslator):
                 p, ext = os.path.splitext(output_dest)
                 output_dest = f'{p}.{file_ext or ext[1:]}'
                 
-                # 检查是否需要跳过已翻译的文件
-                if not params.get('overwrite') and os.path.exists(output_dest):
+                # 检查是否需要跳过已翻译的文件 (preprocess_dump 模式要求 png+pkl 成对才算完成)
+                if self.preprocess_dump:
+                    output_done = os.path.exists(output_dest) and os.path.exists(os.path.splitext(output_dest)[0] + '.pkl')
+                else:
+                    output_done = os.path.exists(output_dest)
+                if not params.get('overwrite') and output_done:
                     logger.debug(f'Skipping already translated file: "{output_dest}"')
                     continue
                     
@@ -437,7 +458,15 @@ class MangaTranslatorLocal(MangaTranslator):
                         save_ctx.gimp_font = batch_config.render.gimp_font
                         save_ctx.save_quality = self.save_quality
                         
-                        save_result(ctx.result, output_dest, save_ctx)
+                        if self.preprocess_dump and output_dest.lower().endswith('.png'):
+                            # Pass A 캐시는 무손실 PNG 유지 + 압축레벨 1로 인코딩 병목 완화.
+                            # save_result의 png 분기(result.save(dest))와 동일하되 compress_level만 1로.
+                            # 디렉터리는 위 os.makedirs(dest_root)에서 이미 생성됨.
+                            ctx.result.save(output_dest, compress_level=1)
+                        else:
+                            save_result(ctx.result, output_dest, save_ctx)
+                        if self.preprocess_dump:
+                            self._dump_preprocess_cache(ctx, output_dest)
                         translated_count += 1
                         
                         # 保存文本文件（如果需要）
@@ -491,8 +520,14 @@ class MangaTranslatorLocal(MangaTranslator):
                             should_save = False
                             # logger.info(f'Skipping save for retry: {file_path} (translation failed but has original text)')
                         
+                        if self.preprocess_dump:
+                            # Pass A: 원본 저장 금지 + 기존 pkl 삭제로 쌍 무효화 (재실행 시 재처리 대상)
+                            pkl_path = os.path.splitext(output_dest)[0] + '.pkl'
+                            if os.path.exists(pkl_path):
+                                os.remove(pkl_path)
+                            logger.warning(f'Preprocess page failed, cache invalidated: "{file_path}" ({save_reason})')
                         # 如果不跳过无文本图片，且决定保存，则保存原图
-                        if should_save and not self.skip_no_text:
+                        elif should_save and not self.skip_no_text:
                             logger.info(f'Saving original image ({save_reason}): {file_path}')
                             try:
                                 # 确保目标目录存在
