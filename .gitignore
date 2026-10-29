@@ -60,3 +60,6 @@ tmp/
 .omx/
 .gpu_count
 nohup.out
+
+# hdTrans 바이너리·배포판 (다운로드 자산 — 커밋하지 않음, configs/hdtrans-userdict.txt만 추적)
+vendor/
