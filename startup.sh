@@ -31,6 +31,11 @@ for f in manga_translator/manga_translator.py \
         exit 1
     fi
 done
+
+# hdTrans 오프라인 번역기(hd-kor.toml용) — 경고만 하고 계속(GLM 경로는 무관)
+if [ ! -x vendor/hdtrans/hdTrans-0.7.4/hdtrans ]; then
+    echo "   ⚠ hdtrans 바이너리 없음 — hd-kor.toml 작업은 실패함 (GLM 경로는 정상)" >&2
+fi
 docker compose --env-file .env -f demo/doc/docker-compose-web-with-gpu.yml up -d
 # GPU 접근 단절 점검 (WSL2에서 장기 구동 컨테이너에 발생) — 재생성하면 대부분 복구됨
 for c in $(docker ps --filter name=manga_image_translator --format '{{.Names}}'); do

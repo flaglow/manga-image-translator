@@ -123,6 +123,7 @@ class Translator(str, Enum):
     gemini = "gemini"
     gemini_2stage = "gemini_2stage"
     custom_openai = "custom_openai"
+    hdtrans = "hdtrans"
     offline = "offline"
     nllb = "nllb"
     nllb_big = "nllb_big"

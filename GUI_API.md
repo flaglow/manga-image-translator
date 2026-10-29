@@ -41,6 +41,15 @@
 ### `GET /api/browse?path=<상대경로>` — 폴더 탐색
 ### `GET /api/configs` — 설정 파일 목록
 
+`configs/` 의 toml 목록. 현재 제공 설정:
+
+- `gpt-kor.toml` — GLM 번역 (custom_openai, `.env` 의 `OPENAI_COMPATIBLE_*` 필요)
+- `hd-kor.toml` — **hdTrans 오프라인 번역** (규칙 기반 일한, 비용·거부·429 없음).
+  요구: `vendor/hdtrans/hdTrans-0.7.4/` (바이너리+`hdtrans-data/`+`lib/`, compose·FINISH_MOUNTS로
+  컨테이너 마운트됨). 사용자 사전 `configs/hdtrans-userdict.txt` 자동 적용
+  (빠짐: `HDTRANS_PATH`/`HDTRANS_SPEECH`/`HDTRANS_USERDICT`/`HDTRANS_CONCURRENCY` env로 재정의)
+
+
 ## 제어
 
 ### 처리 모드 (`mode`)

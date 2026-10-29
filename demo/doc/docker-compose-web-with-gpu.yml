@@ -18,6 +18,7 @@ services:
       - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
       - ./../../manga_translator/args.py:/app/manga_translator/args.py
       - ./../../tmp:/app/tmp
+      - ./../../vendor/hdtrans:/app/vendor/hdtrans
       - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
       - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
       - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
@@ -62,6 +63,7 @@ services:
       - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
       - ./../../manga_translator/args.py:/app/manga_translator/args.py
       - ./../../tmp:/app/tmp
+      - ./../../vendor/hdtrans:/app/vendor/hdtrans
       - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
       - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
       - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
@@ -106,6 +108,7 @@ services:
       - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
       - ./../../manga_translator/args.py:/app/manga_translator/args.py
       - ./../../tmp:/app/tmp
+      - ./../../vendor/hdtrans:/app/vendor/hdtrans
       - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
       - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
       - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
@@ -149,6 +152,7 @@ services:
       - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
       - ./../../manga_translator/args.py:/app/manga_translator/args.py
       - ./../../tmp:/app/tmp
+      - ./../../vendor/hdtrans:/app/vendor/hdtrans
       - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
       - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
       - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py
@@ -194,6 +198,7 @@ services:
       - ./../../manga_translator/translators/keys.py:/app/manga_translator/translators/keys.py
       - ./../../manga_translator/args.py:/app/manga_translator/args.py
       - ./../../tmp:/app/tmp
+      - ./../../vendor/hdtrans:/app/vendor/hdtrans
       - ./../../manga_translator/manga_translator.py:/app/manga_translator/manga_translator.py
       - ./../../manga_translator/mode/local.py:/app/manga_translator/mode/local.py
       - ./../../manga_translator/mode/finish.py:/app/manga_translator/mode/finish.py

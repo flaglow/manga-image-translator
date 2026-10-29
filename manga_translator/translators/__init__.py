@@ -26,6 +26,7 @@ from .groq import GroqTranslator
 from .gemini import GeminiTranslator
 from .gemini_2stage import Gemini2StageTranslator
 from .custom_openai import CustomOpenAiTranslator
+from .hdtrans import HdTransTranslator
 from ..config import Translator, TranslatorConfig, TranslatorChain
 from ..utils import Context
 
@@ -66,6 +67,7 @@ TRANSLATORS = {
     Translator.none: NoneTranslator,
     Translator.original: OriginalTranslator,
     Translator.sakura: SakuraTranslator,
+    Translator.hdtrans: HdTransTranslator,
     **GPT_TRANSLATORS,
     **OFFLINE_TRANSLATORS,
 }

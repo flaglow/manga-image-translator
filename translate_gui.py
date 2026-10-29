@@ -93,6 +93,8 @@ FINISH_MOUNTS = [
     (os.path.join(ROOT, 'manga_translator', 'translators', 'custom_openai.py'), '/app/manga_translator/translators/custom_openai.py'),
     (os.path.join(ROOT, 'manga_translator', 'translators', 'keys.py'), '/app/manga_translator/translators/keys.py'),
     (os.path.join(ROOT, 'manga_translator', 'translators', 'config_gpt.py'), '/app/manga_translator/translators/config_gpt.py'),
+    # hdTrans 오프라인 번역기 (hd-kor.toml 선택 시 사용) — 없으면 GLM 경로는 영향 없음
+    (os.path.join(ROOT, 'vendor', 'hdtrans'), '/app/vendor/hdtrans'),
 ]
 
 
