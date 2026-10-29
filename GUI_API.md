@@ -103,6 +103,13 @@ GPU 레인(pre/full)에서 유지할 컨테이너 개수. **1~5, 기본 3**. 대
 ```
 응답에 `added` / `skipped[{folder, reason}]`.
 
+`mode=pre`에서 pre 캐시는 전부 갖춰졌는데 `translated/`가 덜 끝난 권은 스킵 대신
+**finish 작업으로 재등록**한다(2026-10-13 스톨 수리 — 큐가 메모리라 서버 재시작으로
+pre→finish 체이닝이 끊겼을 때의 유일한 회수 경로). 또한 Pass A는 텍스트 없는 페이지
+(OCR 원문 없음)를 빈 pkl+원본 png 쌍으로 캐시 완결 처리하며, finish는 이를
+'no text regions' 판정으로 원본 통과시킨다 — 재시도 불가능한 확정 스킵 페이지를
+실패로 남기지 않는다.
+
 ### `POST /api/jobs/<ID>/cancel` — 실행 중 작업 취소
 ### `DELETE /api/jobs/<ID>` — 작업 삭제 (실행 중이면 409)
 

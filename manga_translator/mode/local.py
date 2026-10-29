@@ -521,11 +521,26 @@ class MangaTranslatorLocal(MangaTranslator):
                             # logger.info(f'Skipping save for retry: {file_path} (translation failed but has original text)')
                         
                         if self.preprocess_dump:
-                            # Pass A: 원본 저장 금지 + 기존 pkl 삭제로 쌍 무효화 (재실행 시 재처리 대상)
-                            pkl_path = os.path.splitext(output_dest)[0] + '.pkl'
-                            if os.path.exists(pkl_path):
-                                os.remove(pkl_path)
-                            logger.warning(f'Preprocess page failed, cache invalidated: "{file_path}" ({save_reason})')
+                            if save_reason == "no_original_text":
+                                # 텍스트 없는 페이지는 재처리해도 같은 결과다(확정적 스킵) —
+                                # 캐시 무효화로 남기면 매 실행마다 같은 실패를 반복한다.
+                                # 빈 regions pkl + 원본 png 쌍을 남겨 완결 처리하면
+                                # pre 완료 판정을 통과하고, finish(classify_pages)는
+                                # regions=[]를 'no text regions'로 판정해 원본을 통과시킨다.
+                                try:
+                                    os.makedirs(os.path.dirname(output_dest), exist_ok=True)
+                                    img.save(output_dest, format='PNG', compress_level=1)
+                                    self._dump_preprocess_cache(ctx, output_dest)
+                                    translated_count += 1
+                                    logger.info(f'Textless page cached as-is: "{output_dest}"')
+                                except Exception as save_error:
+                                    logger.error(f'Failed to cache textless page: {file_path}, error: {save_error}')
+                            else:
+                                # Pass A: 원본 저장 금지 + 기존 pkl 삭제로 쌍 무효화 (재실행 시 재처리 대상)
+                                pkl_path = os.path.splitext(output_dest)[0] + '.pkl'
+                                if os.path.exists(pkl_path):
+                                    os.remove(pkl_path)
+                                logger.warning(f'Preprocess page failed, cache invalidated: "{file_path}" ({save_reason})')
                         # 如果不跳过无文本图片，且决定保存，则保存原图
                         elif should_save and not self.skip_no_text:
                             logger.info(f'Saving original image ({save_reason}): {file_path}')

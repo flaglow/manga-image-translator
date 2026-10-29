@@ -1171,9 +1171,25 @@ def api_bulk_add(body):
             continue
         dup = duplicate_result_check(sub, body.get('overwrite'), mode)
         if dup:
-            done = pre_pair_count(sub) if mode == 'pre' else translated_count(sub)
-            skipped.append({'folder': sub,
-                            'reason': ('이미 사전처리됨' if mode == 'pre' else '이미 번역됨') if done else dup})
+            resumed = False
+            if mode == 'pre' and not body.get('overwrite'):
+                # pre 캐시는 갖춰졌는데 번역(finish)이 덜 끝난 권 — 작업 큐는 메모리라
+                # 서버 재시작으로 pre→finish 체이닝이 끊기면 아무도 이어주지 못한다
+                # (2026-10-13 스톨 사고). finish 작업으로 재등록해 마저 소화한다.
+                total_in = count_images(os.path.join(DATA_DIR, sub))
+                if total_in and pre_pair_count(sub) >= total_in > translated_count(sub):
+                    fid = make_job(sub, DEFAULT_CONFIG, None, body.get('save_text'),
+                                   body.get('overwrite'), mode='finish')
+                    if fid:
+                        added += 1
+                        resumed = True
+                    else:
+                        skipped.append({'folder': sub, 'reason': '이미 큐에 있음'})
+                        continue
+            if not resumed:
+                done = pre_pair_count(sub) if mode == 'pre' else translated_count(sub)
+                skipped.append({'folder': sub,
+                                'reason': ('이미 사전처리됨' if mode == 'pre' else '이미 번역됨') if done else dup})
             continue
         jid = make_job(sub, config, None if container in ('', 'auto') else container,
                        body.get('save_text'), body.get('overwrite'), mode)
