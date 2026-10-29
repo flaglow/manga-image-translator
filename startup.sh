@@ -24,7 +24,8 @@ mkdir -p result tmp   # 컨테이너 마운트용 — 없으면 docker가 root �
 for f in manga_translator/manga_translator.py \
          manga_translator/mode/local.py \
          manga_translator/mode/finish.py \
-         manga_translator/args.py; do
+         manga_translator/args.py \
+         manga_translator/translators/config_gpt.py; do
     if [ ! -f "$f" ]; then
         echo "   ✗ 마운트 소스 파일 없음: $f — compose up 중단" >&2
         exit 1
