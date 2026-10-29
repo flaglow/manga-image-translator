@@ -25,7 +25,10 @@ for f in manga_translator/manga_translator.py \
          manga_translator/mode/local.py \
          manga_translator/mode/finish.py \
          manga_translator/args.py \
-         manga_translator/translators/config_gpt.py; do
+         manga_translator/translators/config_gpt.py \
+         manga_translator/config.py \
+         manga_translator/translators/__init__.py \
+         manga_translator/translators/hdtrans.py; do
     if [ ! -f "$f" ]; then
         echo "   ✗ 마운트 소스 파일 없음: $f — compose up 중단" >&2
         exit 1

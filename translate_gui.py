@@ -93,7 +93,11 @@ FINISH_MOUNTS = [
     (os.path.join(ROOT, 'manga_translator', 'translators', 'custom_openai.py'), '/app/manga_translator/translators/custom_openai.py'),
     (os.path.join(ROOT, 'manga_translator', 'translators', 'keys.py'), '/app/manga_translator/translators/keys.py'),
     (os.path.join(ROOT, 'manga_translator', 'translators', 'config_gpt.py'), '/app/manga_translator/translators/config_gpt.py'),
-    # hdTrans 오프라인 번역기 (hd-kor.toml 선택 시 사용) — 없으면 GLM 경로는 영향 없음
+    # hdTrans 오프라인 번역기 (hd-kor.toml 선택 시 사용) — 없으면 GLM 경로는 영향 없음.
+    # translators/ 디렉터리 통째로 마운트: 이미지보다 repo 쪽이 새로(신규 모듈 포함),
+    # 개별 파일 마운트로는 누락 모듈(m2m100_hf 등)로 import가 죽는다 — 파일럿에서 확인.
+    (os.path.join(ROOT, 'manga_translator', 'translators'), '/app/manga_translator/translators'),
+    (os.path.join(ROOT, 'manga_translator', 'config.py'), '/app/manga_translator/config.py'),
     (os.path.join(ROOT, 'vendor', 'hdtrans'), '/app/vendor/hdtrans'),
 ]
 
