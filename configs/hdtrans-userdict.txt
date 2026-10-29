@@ -78,3 +78,1400 @@
 # ===== 백페이지 상용구 (출판사 광고 — 코퍼스 고빈도) =====
 キルタイムコミュニケーション検索	킬타임 커뮤니케이션 검색	phrase
 最新情報はオフィシャルサイトへ	최신 정보는 공식 사이트에서	phrase
+
+# ===== 자동 마이닝 (expand_dict.py — 프로브 검증 통과분, 빈도 내림차순) =====
+# 원칙: 개별 항목은 단독 프로브에서 GLM 다수역과 정확 일치할 때만 넣는다.
+# 회귀 감시: 병합 후 diff_corpus.py 실행 → diff_report_v3.tsv와 비교해 MATCH→DIFF 반전 확인.
+# 열: 일본어 <TAB> 한국어 <TAB> 품사   (주석 열 없음 — 빈도·근거는 accepted.tsv 참조)
+おおっ	오오	intj
+ひゃっ	힛	intj
+うおっ	우와앗	intj
+ふっ	흣	intj
+んふっ	응흣	intj
+大丈夫か？	괜찮냐?	phrase
+とらのあな	토라노아나	intj
+あれ	어라	intj
+どうしよう	어떡해	intj
+成人向け	성인용	phrase
+年齢	나이	phrase
+じゃ	그럼	intj
+絶賛発売中！	절찬 판매 중!	phrase
+もしかして	설마	intj
+んんッ	응읏	intj
+まって	잠깐만	intj
+ビギニングノベルズ	비기닝 노벨즈	phrase
+保健室	보건실	phrase
+翌朝	다음 날 아침	phrase
+つづく	계속	intj
+呪詛喰らい師	저주를 먹는 자	phrase
+氏名	성명	phrase
+桃色バスツアー	복숭아빛 버스 투어	phrase
+アンリアルコミックス	언리얼 코믹스	phrase
+作品タイトル	작품 제목	phrase
+これが	이게	intj
+なんだこれ	이게 뭐야	intj
+ホラ	자	n
+本当に	정말로	phrase
+著者単行本	작가 단행본	phrase
+さてと	자, 그럼	intj
+そのおくで	그 안쪽에서	intj
+転生したらHな魔物だった件	전생했더니 H한 마물이었던 건에 대하여	phrase
+あははっ	아하하	intj
+おっぱい	가슴	intj
+どうですか？	어떠세요?	phrase
+んぷっ	응푸웃	intj
+カラーコミックコレクション	컬러 코믹 컬렉션	phrase
+どうして	어째서	intj
+世徒ゆうき	세토 유우키	phrase
+今日は	오늘은	phrase
+隷嬢たちの日常	예속 소녀들의 일상	phrase
+男・女	남·여	phrase
+よしよし	그래그래	intj
+香吹茂之	카부키 시게유키	phrase
+お願い	부탁이야	phrase
+エルトリア	엘트리아	n
+商業誌掲載歴	상업지 게재 이력	phrase
+奇数月	홀수 달	phrase
+クロエ出版	클로에 출판	phrase
+送り先	보낼 곳	phrase
+赤月みゅうと	아카츠키 뮤우토	phrase
+うぁっ	우아앗	intj
+やめ	그만	intj
+気持ちよすぎて	너무 기분 좋아서	phrase
+もっともっと	더 더	phrase
+なで	쓰다듬	intj
+異種姦マニアクス	이종간 매니악스	phrase
+まる寝子	마루네코	phrase
+成コミック	성인 코믹	phrase
+既刊も好評発売中	기존 간행물도 호평 판매 중	phrase
+まったく	정말이지	intj
+イっちゃう	가버려	intj
+好評配信中	호평 배신 중	phrase
+こうして	이렇게	intj
+ほりとも	호리토모	intj
+応募先住所	응모처 주소	phrase
+しいなかずき	시이나 카즈키	phrase
+よろしく	잘 부탁해	intj
+樺島あきら	카바시마 아키라	phrase
+有賀冬	아리가 후유	phrase
+どき	두근	intj
+これで	이걸로	intj
+おかえり	다녀왔어	intj
+好評配信中！	호평 배신 중!	phrase
+可憐	카렌	phrase
+うしのみや	우시노미야	intj
+板場広し	이타바 히로시	phrase
+はははっ	하하하하	intj
+けものびと	케모노비토	intj
+最終ページ右下	마지막 페이지 우측 하단	phrase
+えい	에이	intj
+それとも	아니면	intj
+お姉ちゃんっ	언니!	phrase
+ハイ	네	n
+出るっ！	나온다!	phrase
+やばいっ	안 돼	intj
+いいのよ	괜찮아	intj
+なか	안에	intj
+気持ち良すぎて	너무 기분 좋아서	phrase
+おはよ	좋은 아침	intj
+こんなに	이렇게나	intj
+◆つづく◆	◆계속◆	intj
+弟者の村	동생의 마을	phrase
+あはぁ	아하앙	intj
+というか	그러니까	intj
+いくっ	간다	intj
+左藤空気先生	사토 쿠우키 선생님	phrase
+出る‼	나온다!!	phrase
+ねね	네네	intj
+おいで	이리 와	intj
+うおおっ	우오오	intj
+れろ	레로	intj
+良かった	다행이다	phrase
+今度は	이번엔	phrase
+すいません	죄송합니다	intj
+大丈夫だって	괜찮다니까	phrase
+先生っ	선생님!	phrase
+挿れるよ	넣을게	phrase
+吉村竜巻	요시무라 타츠마키	phrase
+パコパコTIMG	파코파코TIMG	phrase
+俺の親友は	내 절친은	phrase
+安治ぽん太郎	안지 폰타로	phrase
+はひっ	하힛	intj
+なんだこれ⁉	이게 뭐야!?	phrase
+春城秋介	하루시로 슈스케	phrase
+沢尻メロウ	사와지리 메로우	phrase
+でもね	그런데 말이야	intj
+それでは	그럼	intj
+ククク	쿠쿠쿠	n
+そうですか	그렇군요	intj
+こうなったら	이렇게 된 이상	phrase
+ようこそ	어서 오세요	intj
+しょうがないなぁ	어쩔 수 없네	phrase
+悪い	미안	phrase
+絶対	절대로	phrase
+■つづく	■계속	intj
+ふぁッ	하앗	intj
+バカッ	바보!	n
+クチ	쭙	n
+ゆさ	유사	intj
+神楽もろみ	카구라 모로미	phrase
+山崎かずま	야마자키 카즈마	phrase
+エロトラッフダンジョン	에로 트랩 던전	phrase
+お疲れ様	수고했어	phrase
+おはら誠	오하라 마코토	phrase
+椿十四郎	츠바키 주시로	phrase
+こっちも	이쪽도	intj
+ごちそうさま	잘 먹었습니다	phrase
+うわッ	우와앗	intj
+いいや	아니야	intj
+[お名前]	[성명]	phrase
+うんいいよ	응, 좋아	intj
+宛先	보낼 곳	phrase
+らくじん	라쿠진	intj
+出る！	나온다!	phrase
+愛してる	사랑해	phrase
+キラ	반짝	n
+何度も	몇 번이고	phrase
+いただきまーす	잘 먹겠습니다~	phrase
+うふふっ	우후후	intj
+やだよ	싫어	intj
+マジか	진짜냐	intj
+ゴメン	미안	n
+社長	사장님	phrase
+オイ	야	n
+イキたくないッ	가기 싫어...	phrase
+うめ丸	우메마루	phrase
+田中あじ	타나카 아지	phrase
+コミックアンリアル	코믹 언리얼	phrase
+お名前	성명	phrase
+んぷ	응푸	intj
+舞六まいむ	마이로쿠 마이무	phrase
+ふあぁ	후아앙	intj
+キモッ	징그러워	n
+同封する切手	동봉할 우표	phrase
+成島ゴドー	나리시마 고도	phrase
+キモ	징그러워	n
+九栗おいも	쿠구리 오이모	phrase
+いのまる	이노마루	intj
+墓場	무덤	phrase
+アシオミマサト	아시오미 마사토	n
+こっこれは	이, 이건	intj
+雷光神姫	뇌광신희	phrase
+イク	간다	n
+今だ！	지금이다!	phrase
+黙れ！	닥쳐!	phrase
+好きです	좋아해요	phrase
+ヤバい	위험해	intj
+【奇数月】	【홀수 달】	phrase
+奇数月12日発売	홀수 달 12일 발매	phrase
+わしさん	와시 씨	intj
+つーか	그러니까	intj
+キャン	깨갱	n
+どうしよう！	어떡해!	phrase
+みずゆき	미즈유키	intj
+パコパコTOME	파코파코TOME	phrase
+すみすず	스미스즈	intj
+だにまる	다니마루	intj
+年生以上	학년 이상	phrase
+長瀬徹	나가세 토오루	phrase
+花札さくらの	하나후다 사쿠라노	phrase
+ケホ	케호	n
+お願い！	부탁이야!	phrase
+えへへっ	에헤헤	intj
+もみやま	모미야마	intj
+菊月太朗	키쿠즈키 타로	phrase
+しのぎ鋭介	시노기 에이스케	phrase
+海老名えび	에비나 에비	phrase
+だからさ	그러니까 말이야	intj
+あっはい	아, 네	intj
+一緒に	같이	phrase
+むに	무니	intj
+いいんだよ	괜찮아	intj
+おっぱいも	가슴도	intj
+ねえねえ	저기 저기	intj
+きゅん	큥	intj
+いっちゃう	가버려	intj
+あ〜あ	아~아	intj
+偶数月17日発売	짝수 달 17일 발매	phrase
+ですが	하지만	intj
+小桜クマネコ	코자쿠라 쿠마네코	phrase
+はやく	빨리	intj
+出ちゃう	나올 것 같아	phrase
+ひゃ	힛	intj
+よくできました	잘했어요	phrase
+女の子	여자애	phrase
+さいもん	사이몬	intj
+ながしま超助	나가시마 초스케	phrase
+姫野こもも	히메노 코모모	phrase
+オータムリーフ	오텀 리프	n
+今月のことわざ	이달의 속담	phrase
+挿入れるぞ	넣는다	phrase
+そうじゃなくて	그게 아니라	phrase
+射精すぞっ	싼다!	phrase
+もう一回	한 번 더	phrase
+わき	겨드랑이	intj
+蒼山哲	아오야마 테츠	phrase
+投稿歴	투고 이력	phrase
+ちが	아니	intj
+とか	라든가	intj
+ふふふっ	후후후후	intj
+名様	명	phrase
+バカな	말도 안 돼	intj
+イッちゃう	가버려	intj
+ざわ	자와	intj
+そりゃそうだ	당연하지	phrase
+黙れ	닥쳐	phrase
+これはこれは	이런 이런	phrase
+ほら見て	자, 봐	phrase
+なんだこれっ	이게 뭐야!	phrase
+ゆうくん	유우군	intj
+んぐぅ	응구우	intj
+お邪魔します	실례하겠습니다	phrase
+うるせぇ	시끄러워	intj
+もう少し	조금만 더	phrase
+んで	그래서	intj
+幹山っ	미키야마!	phrase
+あわ	아와	intj
+知ってる	알아	phrase
+お父さん	아빠	phrase
+なんでだよ	왜냐고	intj
+いくぞ	간다	intj
+幸せ	행복해	phrase
+あかね	아카네	intj
+お願いっ	부탁이야	phrase
+好評配信中!	호평 배신 중!	phrase
+あおいまさみ	아오이 마사미	phrase
+数ヶ月後	몇 달 후	phrase
+谷ロさん	타니로 씨	phrase
+よかったぁ	다행이다아	intj
+数週間後	몇 주 후	phrase
+ハイッ	네!	n
+オフィシャルサイ	오피셜 사이트	n
+春日まゆ	카스가 마유	phrase
+身体が勝手に	몸이 멋대로	phrase
+いてっ	아야	intj
+勝手に	멋대로	phrase
+ナニコレ	뭐야 이거	n
+ちゅぽ	쭙	intj
+カタ	탁	n
+どうか	부디	intj
+出るっ‼	나온다!!	phrase
+おかしく	이상해져	intj
+せんせ	선생	intj
+ぷはぁ	푸하앙	intj
+ひぎっ	힉	intj
+ヴィィン	비이인	n
+宿屋	여관	phrase
+原作・山咲まさと	원작: 야마사키 마사토	phrase
+井垣野あげなす	이가키노 아게나스	phrase
+ケイ王様	케이 왕님	phrase
+しらたき春	시라타키 하루	phrase
+木エ用ボンド	목공용 본드	phrase
+たくわん	타쿠완	intj
+かんむり	칸무리	intj
+時を翔ける少年	시간을 나는 소년	phrase
+あおむし	아오무시	intj
+あみみ	아미미	intj
+春日まゆ先生	카스가 마유 선생님	phrase
+夢乃狸	유메노 타누키	phrase
+プレゼント	경품	n
+はざくらさつき	하자쿠라 사츠키	phrase
+いただき	잘 먹겠습니다	intj
+たらかん	타라칸	intj
+ごめ	미안	intj
+蛸田こぬ	타코타 코누	phrase
+ななな	나나나	intj
+なんだこれ！	이게 뭐야!	phrase
+溝口ぜらちん	미조구치 제라친	phrase
+潮風サンゴ	시오카제 산고	phrase
+応募要項	응모 요강	phrase
+鉄山かや先生	테츠야마 카야 선생님	phrase
+ご注意	주의사항	phrase
+おん	응	intj
+ランスロット	랜슬롯	n
+このままだと	이대로 가면	phrase
+すみませんでした	죄송했습니다	phrase
+ごめんな	미안해	intj
+全く	정말이지	phrase
+景山玄都	카게야마 겐토	phrase
+それと	그리고	intj
+すあ	스아	intj
+松山はやて	마츠야마 하야테	phrase
+動くよ？	움직일게?	phrase
+ボクの	내	intj
+気持ち悪いっ	기분 나빠!	phrase
+女の子に	여자애한테	phrase
+動くよ	움직일게	phrase
+入れるぞ	넣는다	phrase
+ははい	네, 네	intj
+気持ちよすぎる	너무 기분 좋아	phrase
+リミット解除	리밋 해제	phrase
+またな	또 봐	intj
+成功だ	성공이다	phrase
+ひゃぁ	히야앙	intj
+よろしい	좋습니다	intj
+そわ	소와	intj
+了解	알겠어	phrase
+とめきち	토메키치	intj
+出る	나온다	phrase
+高梨志郎	다카나시 시로	phrase
+ってことは	그렇다는 건	intj
+残念	아쉽네	phrase
+コッ	콕	n
+七黄	나나키	phrase
+あ～あ	아~아	intj
+なーくん	나-군	intj
+高浜太郎	타카하마 타로	phrase
+さくら	사쿠라	intj
+いいんですよ	괜찮아요	phrase
+トラッフ	트랩	n
+プル	부르르	n
+いいねぇ	좋네에	intj
+人外レズ風俗	인외 레즈 풍속	phrase
+そりゃそう	당연하지	intj
+ダーメ	안-돼	n
+あァ	아앙	intj
+くあ	쿠아	intj
+制服	교복	phrase
+サイテー	최악이야	n
+キリトリ線	재단선	phrase
+あまぎみちひと	아마기 미치히토	phrase
+針金紳士先生	하리가네 신시 선생님	phrase
+黒川おとぎ	쿠로카와 오토키	phrase
+じゃみん	자민	intj
+四島由紀夫	시마 유키오	phrase
+堕ちろ	타락해라	phrase
+司くん	츠카사 군	phrase
+大秦国王安敦	대진국왕 안동	phrase
+黒川おとき	쿠로카와 오토키	phrase
+ヒック	힉	n
+アナンガ・ランガ	아난가 랑가	n
+中出し	중출	phrase
+鹿山裕一郎	카야마 유이치로	phrase
+イクぅ	간다아	intj
+秋神サトル	아키가미 사토루	phrase
+物足りない	뭔가 부족해	phrase
+もう少しで	조금만 더	phrase
+恥ずかしいけど	부끄럽지만	phrase
+あずみ京平	아즈미 쿄헤이	phrase
+遠野えすけ	토오노 에스케	phrase
+○主なお支払方法	○주요 지불 방법	phrase
+編集スタッフ	편집 스태프	phrase
+柾見ちえ	마사미 치에	phrase
+鉄山かや	테츠야마 카야	phrase
+あまみや真実	아마미야 마코토	phrase
+当たり前でしょ	당연하잖아	phrase
+そんなことより	그런 것보다	phrase
+紙書籍版	종이책판	phrase
+こんなの初めて	이런 건 처음이야	phrase
+しなま	시나마	intj
+創田ぐみ	소다 구미	phrase
+結城とむ	유키 토무	phrase
+みち	미치	intj
+電子書籍限定配信	전자책 한정 배신	phrase
+井上友香梨	이노우에 유카리	phrase
+柔らかくて	부드럽고	phrase
+たぁくん	타아군	intj
+藤本いくら	후지모토 이쿠라	phrase
+きりなま	키리나마	intj
+チバトシロウ	치바 토시로우	n
+うわわっ	우와와앗	intj
+中華なると	중화 나루토	phrase
+スキ	좋아	n
+こんな風にね	이런 식으로 말이야	phrase
+隈太郎	쿠마타로	phrase
+あはい	아, 네	intj
+牛タン	소혀	phrase
+いいなぁ	부럽다	intj
+成年向け	성인용	phrase
+んふっ❤	응흣❤	intj
+パチュン	파츈	n
+ヒヒヒッ	히히힛	n
+こんな事	이런 일을	phrase
+兄さん	오빠	phrase
+うおッ	우와앗	intj
+すぐに	금방	intj
+大丈夫かな？	괜찮을까?	phrase
+コイツ	이 녀석	n
+悪いな	미안한데	phrase
+もう出そうだ	이제 나올 것 같아	phrase
+ひぃッ	히읏	intj
+行くぞ	간다	phrase
+助かった	살았다	phrase
+何だ⁉	뭐야!?	phrase
+なんでこんな	왜 이렇게	phrase
+文香お姉ちゃん	후미카 언니	phrase
+さっきから	아까부터	intj
+～奥付～	~판권지~	phrase
+出てる	나오고 있어	phrase
+あっん	아응	intj
+いつでも	언제든지	intj
+ついに	드디어	intj
+ダメなのに	안 되는데	intj
+はいって	들어와	intj
+うる	시끄러	intj
+なん	뭐	intj
+入れるよ	넣을게	phrase
+あっああぁ	아, 아아앙	intj
+挿れるぞ	넣는다	phrase
+うるさいわねっ	시끄러워!	phrase
+きもちいっ	기분 좋아	intj
+とん	톤	intj
+すぁ	스아	intj
+なんだろ	뭐지	intj
+ああそうか	아아, 그런가	intj
+オイオイ	야, 야	n
+返信	답글	phrase
+あたま	머리가	intj
+でもまぁ	뭐, 그래도	intj
+ならば	그렇다면	intj
+きもちよすぎて	너무 기분 좋아서	phrase
+行くぞ！	간다!	phrase
+何だ	뭐야	phrase
+さらに	게다가	intj
+母上っ	어머님!	phrase
+ヤらせろ	하게 해주라	intj
+安心しろ	안심해	phrase
+よいよい	좋아 좋아	intj
+いづみやおとは	이즈미야 오토하	phrase
+よぉし	좋~아	intj
+承知しました	알겠습니다	phrase
+そんなこと言って	그런 말 하면서	phrase
+んはァ	응하앙	intj
+気持ちイイッ	기분 좋아	phrase
+無駄だよ	소용없어	phrase
+憑依成功だ！	빙의 성공이다!	phrase
+ただし	단,	intj
+大丈夫か	괜찮냐	phrase
+あっそ	아, 그래	intj
+やばッ	위험해	intj
+いい子だ	착하네	phrase
+んはぁぁ	응하아앙	intj
+今だ	지금이다	phrase
+してない	안 했어	intj
+はる	하루	intj
+見られてる	보여지고 있어	phrase
+はて	어라	intj
+膣内に	질 안에	phrase
+俺もだよ	나도야	phrase
+数年後	몇 년 후	phrase
+私のこと	나를	phrase
+偶数月	짝수 달	phrase
+数カ月後	몇 달 후	phrase
+ぎっ	윽	intj
+ひんっ	힛	intj
+やッ	싫어	intj
+舐めろ	핥아	phrase
+漏れちゃう	새어 나올 것 같아	phrase
+みんなで	다 같이	intj
+キルト	킬트	n
+セーラー服	세일러복	phrase
+ナース服	간호복	phrase
+一時間後	한 시간 후	phrase
+バーカ	바보야	n
+私と	나랑	phrase
+きもちぃ	기분 좋아	intj
+くだらない	시시하네	intj
+ガタ	덜컹	n
+誠二郎さん	세이지로 님	phrase
+ちょっと待ってて	잠깐만 기다려	phrase
+愛してる‼	사랑해!!	phrase
+みさかな	미사카나	intj
+あはん	아핫	intj
+先生ッ	선생님!	phrase
+これ以上はっ	더 이상은	phrase
+挿入れるよ	넣을게	phrase
+大好きです	정말 좋아해요	phrase
+気持ちイイ？	기분 좋아?	phrase
+私ね	나 말이야	phrase
+ぷあっ	후아앗	intj
+んぉ	응오	intj
+矢凪まさし	야나기 마사시	phrase
+もずや紫	모즈야 무라사키	phrase
+彩画堂	사이가도	phrase
+ココで	여기서	intj
+書店印	서점 도장	phrase
+あましょく	아마쇼쿠	intj
+宇場義行	우바 요시유키	phrase
+コアマガジン	코아 매거진	n
+あいの智絵	아이노 치에	phrase
+藤坂リリック	후지사카 릴릭	phrase
+茶野みな	차노 미나	phrase
+はっはい	네, 네	intj
+あと	그리고	intj
+松任知基	마츠토 치키	phrase
+紙魚丸	시미마루	phrase
+おおとりりゅうじ	오오토리 류지	phrase
+なるさわ景	나루사와 케이	phrase
+ここのき奈緒	코코노키 나오	phrase
+四方塚ツカサ	시모즈카 츠카사	phrase
+佐藤想次	사토 소지	phrase
+小学	초등	phrase
+淡水犬	담수견	phrase
+牧だいきち	마키 다이키치	phrase
+ううッ	으윽	intj
+綺堂無一	키도 무이치	phrase
+鶴山ミト	츠루야마 미토	phrase
+クソ	젠장	n
+ル庭園	루 정원	phrase
+その夜	그날 밤	phrase
+あっあの	저, 저기	intj
+はっはっ	하앗 하앗	intj
+嫌なのにっ	싫은데도	phrase
+こんなことされて	이런 짓을 당해서	phrase
+かもたま	카모타마	intj
+比良ひら	히라 히라	phrase
+すっごく	정말	intj
+史鬼匠人	시키 쇼진	phrase
+井雲泰助	이쿠모 타이스케	phrase
+シオロク	시오로쿠	n
+しょむ	쇼무	intj
+新羽隆秀	신바 타카히데	phrase
+そんなある日	그러던 어느 날	phrase
+男と全然違う	남자랑 완전 달라	phrase
+浅いとこばっか	얕은 곳만 계속	phrase
+抜かないで	빼지 마	phrase
+海野りょう	우미노 료	phrase
+うわあぁ	우와아앙	intj
+ゆるして	용서해줘	intj
+浦瀬しおじ	우라세 시오지	phrase
+真白	마시로	phrase
+かいづか	카이즈카	intj
+自分の住所と氏名	자신의 주소와 성명	phrase
+もっといっぱい	더 많이	phrase
+大嶋亮	오오시마 료	phrase
+柾見ちえ先生	마사미 치에 선생님	phrase
+優衣ちゃん	유이 쨩	phrase
+淡夢先生	탄무 선생님	phrase
+気持ちいいだろ	기분 좋지?	phrase
+熊尾もふもふ	쿠마오 모후모후	phrase
+腰が動いちゃう	허리가 움직여버려	phrase
+なんだそれ	그게 뭐야	intj
+無駄だ	소용없어	phrase
+ばーか	바-보	intj
+ふひひっ	후히힛	intj
+もうやめて	그만해 줘	intj
+南京まーちゃん	난징 마짱	phrase
+大丈夫かな	괜찮을까	phrase
+嫌だね	싫은데	phrase
+じっとしてて	가만히 있어	phrase
+出ちゃうっ！	나올 것 같아!	phrase
+イザベラ様	이자벨라 님	phrase
+田尾裸べっち	타오라벳치	phrase
+約束する	약속할게	phrase
+こめん	미안	intj
+おっおお	오오오오	intj
+くすぐったい	간지러워	phrase
+いててっ	아야야	intj
+ふえっ	히엣	intj
+女の身体って	여자의 몸이란	phrase
+くそぉ	젠장	intj
+学生寮	학생 기숙사	phrase
+はっはっは	하하하하하	intj
+好きですっ	좋아해요!	phrase
+うんわかった	응, 알았어	phrase
+ひら	히라	intj
+わたしたち	우리들	intj
+ねこのしっぽ	네코노싯포	phrase
+いくらなんでも	아무리 그래도	phrase
+違います	아니에요	phrase
+今日こそ	오늘야말로	phrase
+死ぬ	죽어	phrase
+動くぞ	움직인다	phrase
+愁矢だけ	슈야뿐	phrase
+気持ちい？	기분 좋아?	phrase
+真由香ッ	마유카!	phrase
+写真撮るわよ	사진 찍는다	phrase
+くぁ	쿠아	intj
+落ち着けって	진정해	phrase
+にぎ	주물	intj
+シキ	시키	n
+イグッ	읏	n
+イけ	가	intj
+まぁいいや	뭐, 됐어	intj
+出す	싸	phrase
+主な登場人物	주요 등장인물	phrase
+ウン	응	n
+んンっ	응응	intj
+はい誓います	네, 맹세합니다	phrase
+すずはねすず	스즈하네 스즈	phrase
+ふざけんなっ	장난치지 마!	phrase
+お姉様	언니	phrase
+あり	있음	intj
+桃色バスツア	복숭아빛 버스 투어	phrase
+奇数月中旬発売	홀수 달 중순 발매	phrase
+くっくっくっ	크크크크크크	phrase
+うんありがと	응, 고마워	phrase
+あっそう	아, 그렇구나	intj
+分からない	모르겠어	phrase
+かわいくて	귀엽고	intj
+あーごめん	아~ 미안	intj
+気持ち悪いでしょ	기분 나쁘지?	phrase
+疲れた	피곤해	phrase
+間垣りょうた	마가키 료타	phrase
+枝空	에다소라	phrase
+ナビ狐	내비 여우	phrase
+クククッ	쿠쿠쿳	n
+ヤルク	야루쿠	n
+もっと激しく	더 세게	phrase
+戸村水仙	토무라 스이센	phrase
+まっ待って！	자, 잠깐만!	phrase
+熱くて	뜨겁고	phrase
+どうしようっ	어떡해	phrase
+特異性癖点	특이 성벽 포인트	phrase
+コメント	댓글	n
+んだよ	뭐야	intj
+何度も何度も	몇 번이고 몇 번이고	phrase
+痛かったら言えよ	아프면 말해	phrase
+お気に入り	즐겨찾기	phrase
+そんなことない	그런 거 아니야	phrase
+サンキュー	땡큐	n
+良ければ	괜찮다면	phrase
+旦那様	나리님	phrase
+可憐？	카렌?	phrase
+恥虐の暗黒遊戯	치욕의 암흑유희	phrase
+ココ	여기	n
+あつい	뜨거워	intj
+危ないっ	위험해!	phrase
+いっしょに	같이	intj
+もっと私を	나를 더	phrase
+嬉しいな	기쁘다	phrase
+脱げ	벗어	phrase
+おかわり	더 주세요	intj
+気持ちイイ	기분 좋아	phrase
+まっ待って	자, 잠깐만	phrase
+フォロー中の番組	팔로우 중인 프로그램	phrase
+いい湯だったね	좋은 온천이었네	phrase
+川藤有咲	카와후지 아리사	phrase
+さわさわ	슬슬	intj
+出るぞ	나온다	phrase
+きゅっ	꾹	intj
+上手だよ	잘하는데	phrase
+喜んで	기꺼이	phrase
+気持ちよさそう	기분 좋아 보이네	phrase
+んぎっ	응긋	intj
+あ、	아,	intj
+何かしら	무슨 일이세요?	phrase
+とは言え	그렇긴 해도	phrase
+秋月十夜	아키즈키 토오야	phrase
+夏目萌々花	나츠메 모모카	phrase
+そこはっ	거긴 안 돼	intj
+見つけた	찾았다	phrase
+ぬうッ	으윽	intj
+からっぽ	텅 빔	intj
+ひぎぃ	히긋	intj
+星華！	세이카!	phrase
+あちゅむち	아츠무치	intj
+センセー	선생님	n
+ありえ	있을 수 없	intj
+くあぁッ	쿠아앗	intj
+俺と	나랑	phrase
+速野悠二	하야노 유지	phrase
+うれしいです	기뻐요	phrase
+気持ち良くしてよ	기분 좋게 해줘	phrase
+それはっ	그건...	intj
+んお	응오	intj
+はうん	하응	intj
+悪ッ	싫어	phrase
+相変わらず	여전히	phrase
+エルメの村	엘메의 마을	phrase
+あおむし先生	아오무시 선생님	phrase
+うしのみや先生	우시노미야 선생님	phrase
+秋月伊槻	아키즈키 이츠키	phrase
+ハガキ表	엽서 앞면	phrase
+孕ませ淫モラル	임신시키는 음란 모럴	phrase
+だぁ	다아	intj
+がれきのやま	가레키노야마	phrase
+隷従少女録	예속소녀록	phrase
+当日消印有効です	당일 소인 유효입니다	phrase
+古賀亮	코가 료	phrase
+お絵描き	낙서	phrase
+だくわん	다쿠완	intj
+鬼瓦けるり	오니가와라 케리	phrase
+栗福みのる	쿠리후쿠 미노루	phrase
+ブラザーピエロ	브라더 피에로	n
+田中あし	타나카 아시	phrase
+にゅる	뉴르	intj
+ヒク	힉	n
+レオン	레온	n
+たすけて	도와줘	intj
+分かってます	알고 있어요	phrase
+桔梗	키쿄	phrase
+ハァハァ	하앙 하앙	n
+ハッ	하앗	n
+温野りょく	온노 료쿠	phrase
+許せないっ	용서 못 해	phrase
+オチンポ	오팅포	n
+ユサッ	유쌋	n
+左倉かなを	사쿠라 카나오	phrase
+ちょい	저기	intj
+あべもりおか	아베모리오카	phrase
+あずきこ	아즈키코	intj
+志乃武丹英	시노부 탄에이	phrase
+カサ	사각	n
+ねこあか	네코아카	intj
+志堂マユル	시도 마유루	phrase
+オナクラ	오나클라	n
+必須記入項目	필수 기재 사항	phrase
+りんちゃん	링쨩	intj
+COMICめづ	COMIC 메즈	phrase
+尾山泰永	오야마 야스나가	phrase
+ネビルエナジー・	네빌에너지·	n
+長島駿	나가시마 슌	phrase
+みつあし	미츠아시	intj
+結構です	됐습니다	phrase
+そんなトコ	그런 곳은	intj
+あみあみまんが王	아미아미 만화왕	phrase
+しもはら	시모하라	intj
+しゃぶれ	빨아	intj
+ご苦労様	수고했어	phrase
+三日目	사흘째	phrase
+おいし	맛있어	intj
+一緒にっ	같이	phrase
+イクぞ	간다	intj
+くちゃ	쩝쩝	intj
+そこだめっ	거긴 안 돼	intj
+挿入れて	박아 달라고	phrase
+入魔改造	입마개조	phrase
+すみませんっ	죄송합니다!	phrase
+上手にイケたね	잘 싸았네	phrase
+煤雲なぎ	메구모 나기	phrase
+これきもちい？	이거 기분 좋아?	phrase
+数か月後	몇 달 후	phrase
+いやああっ	싫어어어	intj
+者のひろば	자의 광장	phrase
+見てください	보세요	phrase
+じゃ～ん	짜~잔	intj
+ん～っ	응~읏	intj
+そこには	그곳에는	intj
+奥様	부인	phrase
+職業顔騎	직업 안면기승	phrase
+腰が勝手に	허리가 저절로	phrase
+見たまま	본 그대로	phrase
+搾精女子	착정 소녀	phrase
+晒し愛	폭로애	phrase
+武者小路静香	무샤코지 시즈카	phrase
+紫吹おろし	시부키 오로시	phrase
+おたらい零	오타라이 레이	phrase
+今河ようじん	이마카와 요우진	phrase
+和原ヨウ	와하라 요우	phrase
+恩田斑奥	온다 한오쿠	phrase
+ゆたかめ	유타카메	intj
+お腹	배가	phrase
+飴屋きりか	아메야 키리카	phrase
+おしながき	메뉴판	intj
+挿入れるよっ	넣을 거야	phrase
+なんだこれ？	이게 뭐야?	phrase
+間に合った	막았다	phrase
+激しすぎ	너무 격렬해	phrase
+とは言ったものの	그렇게 말은 했지만	phrase
+お仕置き	응징	phrase
+キャハハ	캬하하	n
+夜空柴	요조라 시바	phrase
+貴店帖合印	귀점 확인인	phrase
+どうにも	어쩔 도리가	intj
+それはさておき	그건 그렇고	phrase
+うおぉっ	우오오	intj
+大丈夫ですっ	괜찮습니다!	phrase
+越後屋夕ケル	에치고야 유케루	phrase
+伊藤屋	이토야	phrase
+ささくまきょうた	사사쿠마 쿄타	phrase
+やっと起きたか	드디어 일어났구나	phrase
+あっんっ	아응	intj
+なめて	핥아줘	intj
+伊月クロ	이즈키 쿠로	phrase
+大丈夫っ	괜찮아!	phrase
+楽しもうぜ	즐기자고	phrase
+ばいばーい	바이바~이	intj
+見てこれ	이거 봐	phrase
+じっ	뚫어져라	intj
+トキ	두근	n
+げげら俊和	게게라 토시카즈	phrase
+こんなの知ったら	이런 걸 알게 되면	phrase
+ふへへ	후헤헤	intj
+俺が代わりに	내가 대신	phrase
+当たり前だろ	당연하잖아	phrase
+んほおっ	응호오옷	intj
+まあいいわ	뭐, 됐어	intj
+決まってるだろ	정해져 있잖아	phrase
+ビュル	뷰르	n
+仕上げだ	마무리다	phrase
+失礼する	실례하겠습니다	phrase
+そんなわけ	그럴 리가	intj
+残念だったな	아쉽게 됐군	phrase
+うるせ	시끄러워	intj
+さっきより	아까보다	intj
+何でも	뭐든지	phrase
+ぎゃ	꺅	intj
+ぐひひ	그히히	intj
+そうだったんだ	그랬구나	phrase
+プッ	푸흡	n
+はっはっはっ	하하하하하하	phrase
+はら	하라	intj
+しに	죽고 싶어	intj
+おかしいなぁ	이상하네~	phrase
+いやあぁ	싫어아아	intj
+気にするな	신경 쓰지 마라	phrase
+田尾裸べっち．	타오라벳치.	phrase
+奥さんっ	부인!	phrase
+なんか変な感じ	뭔가 이상한 기분	phrase
+せーの	하나, 둘	intj
+クソが	젠장	intj
+ひんッ	힛	intj
+むぅっ	으읏	intj
+気になる	궁금해	phrase
+良い子だ	착한 아이야	phrase
+クッ	윽	n
+ナカに	안에	intj
+ガマンできない	참을 수 없어	phrase
+今のうちに	지금 사이에	phrase
+くそ	젠장	intj
+ふひひ	후히히	intj
+女子高生に	여자 고등학생에게	phrase
+乗っ取り	빙의	phrase
+スルッ	스륵	n
+おいおいおい	야, 야, 야	phrase
+ちょっとだけ	조금만	phrase
+来た	왔다	phrase
+頼む	부탁이야	phrase
+ギャハハハ	갸하하하	n
+すごいな	대단하네	intj
+アイツは	저 녀석은	intj
+止まって	멈춰	phrase
+めた子	메타코	phrase
+生意気	건방져	phrase
+保険室	보건실	phrase
+夢にまで見た	꿈에서도 그리던	phrase
+なんだこれ‼	이게 뭐야!!	phrase
+女の子⁉	여자애!?	phrase
+君の	네	phrase
+烏丸やよい	카라스마 야요이	phrase
+原作作画企画	원작·작화·기획	phrase
+もっとして	더 해줘	intj
+あお	아오	intj
+任せて	맡겨줘	phrase
+急にどうした	갑자기 왜 그래	phrase
+はよ	빨리	intj
+待てよっ	잠깐만	phrase
+いい子だね	착하네	phrase
+にしても	그래도	intj
+なんなの	뭐야 이게	intj
+仕方ないか	어쩔 수 없지	phrase
+最近	요즘	phrase
+何なんだよ	대체 뭐야	phrase
+だからお願い	그러니까 부탁이야	phrase
+おっほ	오호	intj
+もう全部	이제 전부	phrase
+はいそう	네, 맞아요	intj
+舌出せ	혀 내놔	phrase
+危ない危ない	위험 위험	phrase
+まさか本当に	설마 정말로	phrase
+手が止まらない	손이 멈추질 않아	phrase
+じゅる	쭉	intj
+うん大丈夫	응, 괜찮아	phrase
+待ってて	기다려 줘	phrase
+月が満ちる前に	달이 차오르기 전에	phrase
+ふぁっ、	하앗,	intj
+奢るからさっ	내가 살 테니까	phrase
+涼子さんっ	료코 씨!	phrase
+ははああ	하하아아	intj
+桜良っ	사쿠라!	phrase
+あ、そうそう	아, 그러고 보니	phrase
+これよ	이거야	intj
+最初は	처음엔	phrase
+力抜けよ	힘 빼	phrase
+カリ	카리	n
+っぷ	읍	intj
+待たない	안 기다려	phrase
+ちょろい	쉽네	intj
+てやるよ	해줄게	intj
+ほしいっ	갖고 싶어	intj
+んあぁあ	응아아앙	intj
+にちゅ	추웃	intj
+兄さん？	오빠?	phrase
+まだだめよ	아직 안 돼	intj
+お願いだから	부탁이니까	phrase
+チョロい	쉽네	intj
+じゃん	짠	intj
+女の子はね	여자애는 말이야	phrase
+久しぶり	오랜만이야	phrase
+いち	하나	intj
+んむぅっ	응무읏	intj
+今日はファ	오늘은 파	phrase
+嘘乙	거짓말 수고	phrase
+柔らかっ	부드러워	phrase
+ごくっ	꼴깍	intj
+気持ち良すぎるっ	너무 기분 좋아	phrase
+奥に	깊은 곳에	phrase
+任せて！	맡겨줘!	phrase
+言ってない	말 안 했어	phrase
+いずく	이즈쿠	intj
+絶対に許しません	절대 용서하지 않겠어	phrase
+疑似空間	의사 공간	phrase
+仕方ないだろう	어쩔 수 없잖아	phrase
+似合ってるよ	잘 어울려	phrase
+やべえ	위험해	intj
+やめてくださいっ	그만해 주세요!	phrase
+なんでよ	왜 그래	intj
+出したい	싸고 싶어	phrase
+お尻出して	엉덩이 내놔	phrase
+当たり前でしょ！	당연하잖아!	phrase
+はいこれ	자, 이거	intj
+ごめんて	미안해	intj
+あっまって	아, 기다려	intj
+っっく	윽	intj
+しーあーる	시-아-르	intj
+とっても	정말로	intj
+こいつを	이건	intj
+馬鹿な	말도 안 돼	phrase
+私もね	나도 말이야	phrase
+フレビューモード	미리보기 모드	n
+私だって	나도	phrase
+挿入るぞ	넣는다	phrase
+こっちに	이쪽으로	intj
+あ、うん	아, 응	intj
+うええ	우에에	intj
+おく	안	intj
+しゅっ	슈웃	intj
+座ってみたり	앉아 보기도 하고	phrase
+女の子の脳波を	여자애의 뇌파를	phrase
+そろそろだな	슬슬 때가 됐군	phrase
+なつきゆう	나츠키 유우	intj
+雪代あるて	유키시로 아루테	phrase
+力が入らない	힘이 안 들어가	phrase
+おま	야, 너	intj
+うえ	우웩	intj
+私はね	나 말이야	phrase
+青羽そよぎ	아오바 소요기	phrase
+まい	마이	intj
+ゆうぎ	유우기	intj
+天月るり	아마츠키 루리	phrase
+そっかそっか	그래그래	phrase
+かわいすぎる	너무 귀여워	phrase
+でもさあ	근데 있잖아	intj
+ううんいいよ	아니, 괜찮아	phrase
+ほんとほんと	진짜 진짜	phrase
+少しだけ	조금만	phrase
+それならさ	그럼 말이야	intj
+大丈夫だって！	괜찮다니까!	phrase
+もうダメ	이제 못 해	intj
+カンパーイ	건배!	n
+すぐ	금방	intj
+んっんんっ	응, 으응	intj
+うぶッ	으윽	intj
+フフフッ	후후후후	n
+綺麗な肌	예쁜 피부네	phrase
+はあり	하아리	intj
+ひゃうッ	히야앗	intj
+イクッイクッ	간다, 가	n
+あ～ん	아～앙	intj
+奈々澄	나나스미	phrase
+身体の奥から	몸 깊은 곳에서	phrase
+激しく	격하게	phrase
+せんぱ	선배	intj
+もちろんだよ	물론이지	phrase
+もごっ	으읍	intj
+無理もないか	무리도 아니지	phrase
+すぁッ	스아앗	intj
+薊野ミツキ	아자미노 미츠키	phrase
+だがな	하지만 말이지	intj
+ごめんなさいぃっ	죄송해요오	phrase
+桃色バスツア-	복숭아빛 버스 투어	phrase
+ポチ	포칙	n
+◆つづく	◆계속	intj
+うざ	짜증나	intj
+あたしだって	나도	phrase
+ねぇパパ	저기, 아빠	intj
+やだっやだっ	싫어 싫어	phrase
+そっち押さえろ	저쪽 잡아	phrase
+おぉっと	어라라	intj
+うんまたね	응, 또 봐	intj
+うぷ	웁	intj
+ずいぶん	꽤나	intj
+はっ はい！	네, 네!	phrase
+へっへっへ	헤헤헤헤헤	intj
+社長⁉	사장님!?	phrase
+はっ、	핫,	intj
+当たり前だろ？	당연하잖아?	phrase
+お前さぁ	너 말이야	phrase
+くすぐったい？	간지러워?	phrase
+このままでは	이대로라면	phrase
+どっちも	둘 다	intj
+●お問い合わせ	●문의처	phrase
+早くしないと	빨리 안 하면	phrase
+涼さま	료우님	phrase
+じゃっ	그럼	intj
+俺さ	나 말이야	phrase
+ほっほ	호호	intj
+出せよ	내놔	phrase
+おまえっ	너 이 자식	intj
+いでっ	아읏	intj
+ぎゃぁ	꺄아	intj
+よしわかった	좋아, 알았어	phrase
+もう限界	이제 한계야	phrase
+もしかしたら	어쩌면	phrase
+分かってるって	알고 있다니까	phrase
+よく言うぜ	잘도 말하는군	phrase
+だからこそ	바로 그렇기 때문에	intj
+そんなに慌てて	그렇게 서둘러서	phrase
+この場所も	이곳도	phrase
+勿論っ	물론이지	phrase
+頭がクラクラする	머리가 어질어질해	phrase
+放課後も	방과 후에도	phrase
+これ反則だよなぁ	이건 반칙이잖아~	phrase
+これまでと	지금까지 그리고	intj
+一緒に溺れようぜ	같이 빠져보자	phrase
+やれるものならね	될 것 같으면 해보시든	phrase
+義兄さんも	형부도	phrase
+いいけどッ	좋아♥	intj
+もうちょっと	조금만 더	phrase
+何考えてんだ	무슨 생각을 하는 거야	phrase
+すっすみません	죄, 죄송합니다	phrase
+いけっ	가라	intj
+じゅぷ	쭙	intj
+ぬぷ	느푸	intj
+興奮しちゃう	흥분해버려	phrase
+むぐぅ	응우우	intj
+ラストッ	라스트!	n
+出すよっ	쌀 거야	phrase
+ちゅく	쭙	intj
+懐かしいなぁ	그립다아	phrase
+んッෆ	응ෆ	intj
+勃ってる	서 있어	phrase
+もぐもぐ	냠냠	intj
+はぶっ	하붓	intj
+しょうがないなあ	어쩔 수 없네	phrase
+かかし朝浩	카카시 아사히로	phrase
+えっちょっと	어, 잠깐	phrase
+イクよ	간다	intj
+んぶひっ	응부힛	intj
+そりゃもう	그야 당연히	intj
+嬉しいです	기뻐요	phrase
+うああああっ	우아아아앙	phrase
+凄い気持ちいいよ	너무 기분 좋아	phrase
+早くしろよ	빨리 해	phrase
+入りなさい	들어와	phrase
+暑い	덥다	phrase
+TSあらかると	TS 뒷이야기	phrase
+ひぇっ	힉	intj
+良かった！	다행이다!	phrase
+なんですって？	뭐라고?	phrase
+着替えた	갈아입었다	phrase
+ギャアア	꺄아아	n
+やっと見つけたよ	드디어 찾았어	phrase
+そんな事より	그런 것보다	phrase
+はわっ	하와앗	intj
+あひん	아힌	intj
+びくん	흐윽	intj
+俺もだ	나도야	phrase
+もういいわ	이제 됐어	intj
+キモw	징그러움ㅋ	intj
+うわわわっ	우와와와	intj
+本物だ	진짜다	phrase
+ゴメンなさい	죄송합니다	phrase
+挿れちゃえ	박아버려	phrase
+あそこも	거기도	intj
+やめてぇえ	그만해어어	intj
+オトメ劇場	오토메 극장	phrase
+くるッ	온다	intj
+トラッ	트랩	n
+私が解いてあげ	내가 풀어줄게	phrase
+キモチ	기분 좋아	n
+あらきかなお	아라키 카나오	phrase
+まえがきまんが	서두 만화	phrase
+構いません	괜찮습니다	phrase
+はい大丈夫です	네, 괜찮습니다	phrase
+もき	모키	intj
+賢明な判断だな	현명한 판단이군	phrase
+成功だ！	성공이다!	phrase
+ちゅる	쭈릅	intj
+知らね	몰라	phrase
+外見	외견	phrase
+入替	스왑	phrase
+あーそっか	아, 그렇구나	intj
+考えただけで	생각만 해도	phrase
+ぐちょ	쭉	intj
+そッ	그, 그런	intj
+勇者様	용자님	phrase
+ああ、そうだ	응, 그래	phrase
+うるさいな	시끄러워	intj
+ゆうちゃん	유우짱	intj
+入れるぞ？	넣는다?	phrase
+ひい	히익	intj
+やめっ、	그만, 하아...	intj
+ビク	겁질	n
+ほぉら	자아	intj
+目が覚めたら	눈을 떠 보니	phrase
+行くよ	간다	phrase
+よかったな	잘됐네	intj
+どうしたんですか	무슨 일이에요?	phrase
+咥えろ	물어	phrase
+頼んだぞ	부탁한다	phrase
+お疲れさま	수고했어	phrase
+じゃじゃあ	그, 그럼	intj
+よっしゃ	좋았어	intj
+次のニュースです	다음 뉴스입니다.	phrase
+ふざけっ	장난치지 마	intj
+にちゃ	니챠	intj
+もに	모무	intj
+目覚めたか	깨어났군	phrase
+ネビリムの使徒	네빌림의 사도	phrase
+ネビルエナジー	네빌 에너지	n
+あぁ、そうだ	아, 그래	phrase
+セックスって	섹스라는 건	phrase
+射精そう	쌀 것 같아	phrase
+それにね	그리고 말이야	intj
+Hだもん	야한 거니까	intj
+射精すよ	쌀 거야	phrase
+すごく優しくて	정말 상냥하고	phrase
+出た	나타났다	phrase
+リーシュさん	리슈 씨	phrase
+ねいさん	네이상	intj
+戻す	되돌리기	phrase
+いいでしょう	좋아요	phrase
+じっとして	가만히 있어	intj
+はいチーズ	자, 치즈	intj
+いっちに	하나 둘	intj
+もっと欲しい	더 원해	phrase
+憑き	빙의	phrase
+言われなくたって	말 안 해도	phrase
+んむーっ	응무-읏	intj
+ホテル云々なんて	호텔 어쩌고 하는 건	phrase
+馬鹿っ	바보!	phrase
+洗っても洗っても	아무리 씻어도 씻어도	phrase
+あんたと	너랑	intj
+仕事の話だけど	일 얘기인데	phrase
+先輩ば	선배는	phrase
+駄目ぇッ	안 돼!	phrase
+感じちゃう	느껴버려	phrase
+ふざけないでっ	농담하지 마!	phrase
+はじけさせると	터뜨리면	phrase
+仕方ないでしょ	어쩔 수 없잖아	phrase
+許して	용서해줘	phrase
+どうですか	어떠세요	intj
+白玉アズキ	시라타마 아즈키	phrase
+冒険者ギルド	모험자 길드	phrase
+絶頂中	절정 중	phrase
+やベッ	위험해	intj
+イきそっ	갈 것 같아	intj
+わわッ	와와앗	intj
+さてっと	자, 그럼	intj
+あぅっあっ	아윽, 아앗	intj
+だといいなぁ	그랬으면 좋겠네요	phrase
+何だったんだろう	뭐였을까	phrase
+星華さん！	세이카 씨!	phrase
+かような所で	이런 곳에서	phrase
+楽しみだわ	기대되는걸	phrase
+原作山咲まさと	원작: 야마사키 마사토	phrase
+馬鹿だなぁ	바보구나~	phrase
+星華ちゃん！	세이카짱!	phrase
+裕嗣っ	유지!	phrase
+ガチガチじゃ	완전 딱딱하구나	phrase
+ウウっっ	으윽	intj
+ちゅぱ	쭙	intj
+オレの	내	intj
+ぐおっ	그억	intj
+カラオケ	노래방	n
+あッあッあッ	아앗 아앗 아앗	phrase
+あっもうっ	아, 진짜	intj
+なでなで	쓰다듬쓰다듬	intj
+はあはあっ	하아 하아	intj
+コウタさんっ	코우타 씨!	phrase
+射精せ	사정해라	phrase
+そんなつもりじゃ	그럴 생각은 아니었는데	phrase
+はぅんっ	하응	intj
+よかったです	다행이에요	phrase
+来場者数	입장자 수	phrase
+配信ランキン	방송 랭킹	phrase
+響には悪いか	히비키한테는 미안하지만	phrase
+すると	그러면	intj
+ニロ生と連動した	니코생과 연동된	phrase
+つもりだったのに	생각이었는데	phrase
+やだあっ	싫어어	intj
+とか言いつつ	그러면서도	phrase
+何を言うか	무슨 소리를 하는 거냐	phrase
+よろこんで	기꺼이	intj
+ふぐッ	읍	intj
+塚本さんっ	츠카모토상!	phrase
+教えてくださいっ	가르쳐 주세요!	phrase
+よいしょっ	요잇	intj
+えにくま	에니쿠마	intj
+入れて	넣어줘	phrase
+しぬっ	죽어	intj
+宮社惣恭	미야시로 소스케	phrase
+おっおう	어, 어어	intj
+悪い悪い	미안 미안	phrase
+ぞくぞく	두근두근	intj
+きょろ	두리번	intj
+大きな声で	큰 소리로	phrase
+んっはぁっ	응 하앙	intj
+イヤァァ	싫어어어	n
+瀬奈陽太郎	세나 요타로	phrase
+桃之助	모모노스케	phrase
+あッん	아앙	intj
+牧部かたる	마키베 카타루	phrase
+かわもりみさき	카와모리 미사키	phrase
+お知らせ	안내	phrase
+ほんだありま	혼다 아리마	phrase
+双葉社	후타바샤	phrase
+ポン貴花田	폰 키카다	phrase
+ぎゅってして	꼭 안아줘	phrase
+すぎ	스기	intj
+かわいそう	불쌍해	intj
+自分で	직접	phrase
+いつきが	이츠키가	intj
+入れるよ？	넣을게?	phrase
+どきどきして	심장이 두근두근해서	phrase
+キスして	키스해 줘	intj
+討伏地	토벌지	phrase
+サキュ討伐地	서큐버스 토벌지	phrase
+サキュバフ討伐地	서큐버스 토벌지	phrase
+モミッ	주물럭	n
+ささくま	사사쿠마	intj
+針金紳主先生	하리가네 신슈 선생님	phrase
+スッ	스윽	n
+では私はこれで	그럼 저는 이만	phrase
+ハルサワ	하루사와	n
+⑤柾見ちえ	⑤마사미 치에	phrase
+何度でも	몇 번이든	phrase
+色紙のみ	색지만	phrase
+失礼致します	실례하겠습니다	phrase
+楽しみ	기대된다	phrase
+テンタクルプレイ	텐타클 플레이	n
+ポタ	뚝	n
+背徳の囚	배덕의 죄수	phrase
+娯禅宙	고센주	phrase
+これが女の子の	이게 여자애의	phrase
+白玉もち	시라타마모치	phrase
+木村寧都	키무라 네즈	phrase
+エレ外さわる先生	에레 소토 사와루 선생님	phrase
+しいなかずき先生	시이나 카즈키 선생님	phrase
+ほりとも先生	호리토모 선생님	phrase
+それはねぇ	그건 말이지	intj
+カジマコト	카지마 코토	n
+これじゃまるで	이건 마치	phrase
+無表情の裏側	무표정의 이면	phrase
+あのさぁ	저기 말이야	intj
+ンんっ	응흣	intj
+たらあ	타아아	intj
+その通りです	그렇습니다	phrase
+甲込数量	신청 수량	phrase
+てりてりお	테리테리오	intj
+お問い合わせ	문의처	phrase
+甲斐ひろゆき	카이 히로유키	phrase
+ムサシマル	무사시마루	n
+きさきさき	키사키사키	intj
+桂よしひろ	카츠라 요시히로	phrase
+いちはや	이치하야	intj
+ぐすたふ	구스타프	intj
+めっちゃ	엄청	intj
+お前のおかげで	너 덕분에	phrase
+トルさん	토루 씨	intj
+息子に施すことに	아들에게 베푸는	phrase
+本当た居るわ	진짜 있네	phrase
+叔父さん	삼촌	phrase
+開放感がいいよな	개방감이 좋다니까	phrase
+伯父ちゃん	아저씨	phrase
+みちるさんっ	미치루 씨!	phrase
+みさぎ和	미사기 와	phrase
+来ちゃう	와버려	phrase
+バチ肉穴化～	바치 육혈화～	phrase
+ガラガラ太郎	가라가라 타로	phrase
+秋月伊機	아키즈키 이키	phrase
+特典配布店舗情報	특전 배포 매장 정보	phrase
+で活躍してくれる	에서 활약해 주세요	phrase
+年齢職業	나이 직업	phrase
+ふともも大魔王	허벅지 대마왕	phrase
+私知ってるよ	나 알아	phrase
+星坂網	호시사카 아미	phrase
+イっちゃえ	가버려	intj
+シュウさん	슈우 씨	intj
+来たか	왔군	phrase
+せーし	정액	intj
+有人成徒	유진성도	phrase
+くっきおーれ	쿠키오레	phrase
+団地の	단치노	phrase
+くりつよしひろ	쿠리 츠요시히로	phrase
+おっぱいが	가슴이	intj
+ふああああっ	후아아아앙	phrase
+まかせて	맡겨줘	intj
+ドリルムラタ	드릴 무라타	n
+奴麗婦人	노예 부인	phrase
+ヒn	힛	intj
+随分背が縮んだな	키가 꽤 줄었네	phrase
+乳首っ	젖꼭지	phrase
+イチカ先輩っ	이치카 선배!	phrase
+やわらけぇ	말랑해	intj
+んーじゃあ	음~ 그럼	intj
+また明日	내일 봐	phrase
+おかしくなる	이상해져	phrase
+よい	좋다	intj
+タワンロート	타워 로트	n
+ずっ	쭉	intj
+海野螢	우노 호타루	phrase
+すごく濡れてる	많이 젖어 있어	phrase
+ねぇ司くん	저기, 츠카사 군	phrase
+では開始します	그럼 시작합니다	phrase
+チンポッ	친포뜨	n
+うひひっ	우히힛	intj
+まだじゃ	아직이다	intj
+婚約破棄なのに	파혼당했는데	phrase
+腰止まんねぇ	허리가 멈추질 않아	phrase
+執男巫女	집행남 무녀	phrase
+笑っちゃうよね	웃음이 나오네	phrase
+背負ってやる	내가 업어줄게	phrase
+四日間	나흘 동안	phrase
+外には出られない	밖으로 나갈 수 없어	phrase
+鬼の好物は生娘	귀신의 최고 음식은 산 처녀	phrase
+胸は大きいし	가슴도 크고	phrase
+でッでもな	하, 하지만 말이야	intj
+香月ッ	카즈키!	phrase
+いっしょにっぃ	같이이이	phrase
+って言われても	그렇게 말해도	phrase
+橋広こう	하시히로 코우	phrase
+丸和太郎	마루와 타로우	phrase
+この期に及んで	이 지경에 이르러서도	phrase
+影追い	그림자 쫓기	phrase
+ふーッ	후우웃	intj
+本書は著作権	본 서적은 저작권	phrase
+by天崎かんな	by 아마사키 칸나	phrase
+綾枷ちよこ	아야카세 치요코	phrase
+田沼雄一郎	타누마 유이치로	phrase
+蟻吉げん	아리요시 겐	phrase
+かわいいです	귀여워요	phrase
+ぶんか社	분카샤	phrase
+しょうさん坊主	쇼상 보우즈	phrase
+井上よしひさ	이노우에 요시히사	phrase
+天智君	텐치 군	phrase
+先ぱい	선배	phrase
+住テ所	주소	phrase
+もちゅ	쪽	intj
+カン	카안	n
+山文京伝	야마부니 쿄덴	phrase
+姉ちゃんっ	누나아!	phrase
+小林由高	코바야시 요시타카	phrase
+チカ姉	치카 누나	phrase
+あみーご	아미~고	intj
+天使だ	천사다	phrase
+鳥喰ささみ	토리쿠이 사사미	phrase
+くああ	쿠아아	intj
+持ち込み応募	직접 방문 응모	phrase
+郵送応募	우편 응모	phrase
+菊のすけまる	국화의 스케마루	phrase
+ち○ぽ	자○지	intj
+早紀っ	사키…!	phrase
+びゅッ	뾰욧	intj
+飴崎ばにら	아메자키 바니라	phrase
+ナオルくん	나오루 군	intj
+カオ	카오	n
+オレのご主人	내 주인님	phrase
+旅行の日以来	여행한 날 이후로	phrase
+行くぞつくし	가자, 츠쿠시	phrase
+スタッフ募集	스태프 모집	phrase
+小夜子ぉ	사요코오	phrase
+こもりけい	코모리 케이	intj
+エッチな	에치한	intj
+桂あいり	카츠라 아이리	phrase
+師匠	사부님	phrase
+そらモチ	소라모치	intj
+淫乱値	음란 수치	phrase
