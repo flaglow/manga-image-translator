@@ -1121,7 +1121,7 @@ def duplicate_result_check(rel, overwrite, mode='full'):
 def api_add_job(body):
     rel = safe_under_data(body.get('folder', ''))
     container = body.get('container', '')
-    config = body.get('config', '')
+    config = body.get('config') or DEFAULT_CONFIG  # 생략 시 GLM(gpt-kor.toml)
     mode = body.get('mode') or DEFAULT_MODE
     if mode not in MODES:
         return {'error': f'알 수 없는 모드: {mode}'}, 400
@@ -1157,7 +1157,7 @@ def api_bulk_add(body):
           f'overwrite={body.get("overwrite")}', flush=True)
     rel = safe_under_data(body.get('folder', ''))
     container = body.get('container', '')
-    config = body.get('config', '')
+    config = body.get('config') or DEFAULT_CONFIG  # 생략 시 GLM(gpt-kor.toml)
     mode = body.get('mode') or DEFAULT_MODE
     if mode not in MODES:
         return {'error': f'알 수 없는 모드: {mode}'}, 400
