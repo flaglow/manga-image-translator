@@ -251,8 +251,9 @@ async def main():
         if rel_in.startswith(_prefix):
             rel_in = rel_in[len(_prefix):]
             break
-    os.makedirs('tmp/hymt2-log', exist_ok=True)
-    seg_log = open(os.path.join('tmp/hymt2-log', rel_in + '.jsonl'), 'a', encoding='utf-8')
+    seg_log_path = os.path.join('tmp/hymt2-log', rel_in + '.jsonl')
+    os.makedirs(os.path.dirname(seg_log_path) or 'tmp/hymt2-log', exist_ok=True)
+    seg_log = open(seg_log_path, 'a', encoding='utf-8')
 
     # Chunked translation + rendering, order preserved
     for chunk_start in range(0, len(render_pages), args.batch_size):
