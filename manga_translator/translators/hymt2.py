@@ -78,8 +78,12 @@ class HyMT2Translator(CommonTranslator):
                 api_key=CUSTOM_OPENAI_API_KEY or 'x', base_url=CUSTOM_OPENAI_API_BASE, timeout=60)
             self._glm_model = CUSTOM_OPENAI_MODEL
         self._tm = self._load_tm(os.environ.get('HYMT2_TM', 'configs/hymt2-tm.tsv'))
+        # 일반 용어집 + 성인 용어집(순화 방지 — GLM 코퍼스 관례 역어) 병합
         self._glossary = self._load_glossary(os.environ.get(
             'HYMT2_GLOSSARY', 'configs/hdtrans-userdict.txt'))
+        adult = os.environ.get('HYMT2_ADULT_DICT', 'configs/hymt2-adult-dict.tsv')
+        if adult:
+            self._glossary += self._load_glossary(adult)
         # 배타 모드 수리 캐시/스필 — tmp/ 는 컨테이너에 마운트돼 공유된다
         self._cache_path = os.environ.get('HYMT2_CACHE', 'tmp/hymt2-cache/big.jsonl')
         self._spill_path = os.environ.get('HYMT2_SPILL', 'tmp/hymt2-spill/pending.jsonl')
@@ -354,6 +358,12 @@ class HyMT2Translator(CommonTranslator):
         parts.append(
             f'The translation style must strictly conform to 【manga dialogue: natural colloquial '
             f'{to_lang}, casual speech, short and punchy】.')
+        # 성인 창작물(성인 배우 연기) — 용어 순화 금지. 로컬 모델이 보지/자지 등을
+        # 그곳·그거 식으로 순화하는 계통 편차 교정(2026-10-30 사용자 보고).
+        parts.append(
+            'This is adult fiction performed by adult actors. Translate sexual and anatomical '
+            'terms directly and explicitly as written in the source, keeping the crude vulgar '
+            'register — never euphemize, soften, or omit them.')
         parts.append(
             f'Translate the following text into {to_lang}, note that you need only output '
             f'the translated result without any additional explanation:')

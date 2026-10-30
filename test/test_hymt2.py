@@ -370,6 +370,17 @@ async def test_direct_big_option(make_translator, monkeypatch):
     t._client_small.chat.completions.create.assert_not_awaited()
 
 
+def test_adult_dict_injection(make_translator):
+    # 성인 용어집(기본 configs/hymt2-adult-dict.tsv) — 명시 용어가 공식 용어집 형식으로 주입
+    t = make_translator()
+    p = t._build_prompt('Korean', '私のおまんこに屈辱を', '')
+    assert 'おまんこ => 보지' in p
+    p2 = t._build_prompt('Korean', 'クリトリスは…', '')
+    assert 'クリトリス => 음핵' in p2
+    # 순화 금지 지시문 포함
+    assert 'never euphemize' in p
+
+
 def test_gate_rules():
     from manga_translator.translators.hymt2 import HyMT2Translator as H
     assert H._gate_ok('どうした', '어떡해')

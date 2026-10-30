@@ -655,6 +655,28 @@ def _gpu_scale_once(idle_since):
     return idle_since
 
 
+def _vllm_selfheal():
+    """vLLM 소형(hymt2-small) 자가치유 — 상시 서비스가 외부 요인으로 정지되면 재기동.
+    (2026-10-30: 원인 미상의 정지가 반복 발견 — 번역 레인이 빈 출력/스필로 미회복되는
+    사고 방지. 컨테이너가 없으면 compose로 생성까지 시도.)"""
+    if not FINISH_NETWORK:
+        return
+    try:
+        import urllib.request
+        with urllib.request.urlopen('http://localhost:8011/health', timeout=3) as r:
+            if r.status == 200:
+                return
+    except Exception:
+        pass
+    r = subprocess.run(['docker', 'start', 'mit_hymt2_small'],
+                       capture_output=True, timeout=30)
+    if r.returncode != 0:
+        subprocess.run(['docker', 'compose', '-f',
+                        os.path.join(ROOT, 'demo/doc/docker-compose-hymt2.yml'),
+                        'up', '-d', 'hymt2-small'], capture_output=True, timeout=120)
+    print('[vLLM] hymt2-small 사망 감지 — 재기동', flush=True)
+
+
 def gpu_scaler_loop():
     """GPU 컨테이너 오토스케일러 (데몬, 20초 주기).
     GPU 작업(pre/full)이 대기/실행 중이면 정지된 대상 컨테이너를 기동하고,
@@ -664,6 +686,7 @@ def gpu_scaler_loop():
     while True:
         try:
             idle_since = _gpu_scale_once(idle_since)
+            _vllm_selfheal()
         except Exception as e:
             print(f'[GPU] 스케일러 오류: {e}', flush=True)
         time.sleep(GPU_SCALER_INTERVAL)
