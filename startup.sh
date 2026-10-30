@@ -40,6 +40,12 @@ if [ ! -x vendor/hdtrans/hdTrans-0.7.4/hdtrans ]; then
     echo "   ⚠ hdtrans 바이너리 없음 — hd-kor.toml 작업은 실패함 (GLM 경로는 정상)" >&2
 fi
 docker compose --env-file .env -f demo/doc/docker-compose-web-with-gpu.yml up -d
+# Hy-MT2 로컬 LLM(vLLM) 소형 — 전처리 GPU와 분리된 고정 컨테이너 (hymt2 네트워크).
+# 실패해도 GLM/hdTrans 경로는 영향 없음. 대형(7B)은 배타 수리 패스(hymt2_repair.sh)로만.
+if [ -f demo/doc/docker-compose-hymt2.yml ]; then
+    docker compose -f demo/doc/docker-compose-hymt2.yml up -d hymt2-small || \
+        echo "   ⚠ vLLM(hymt2-small) 기동 실패 — hymt2-kor.toml 의 LLM 티어 없이 동작" >&2
+fi
 # GPU 접근 단절 점검 (WSL2에서 장기 구동 컨테이너에 발생) — 재생성하면 대부분 복구됨
 for c in $(docker ps --filter name=manga_image_translator --format '{{.Names}}'); do
     if ! docker exec "$c" nvidia-smi >/dev/null 2>&1; then

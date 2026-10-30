@@ -503,7 +503,12 @@ GPU_IDLE_GRACE = int(_env('GPU_IDLE_GRACE', '300') or '300')  # 무작업 유예
 GPU_SCALER_INTERVAL = 20  # 판정 주기(초)
 
 GPU_COUNT_FILE = os.path.join(ROOT, '.gpu_count')  # 목표 개수 저장 — 대시보드 재시작에도 유지
-GPU_COUNT_MAX = len(GPU_CONTAINERS)
+# 전처리 GPU 컨테이너와 로컬 LLM(vLLM, hymt2 네트워크)은 같은 물리 GPU를 공유한다.
+# vLLM 소형이 고정 상시(≈4.8GB)이므로 그 분량을 제외한 최대 개수로 제한 — 기본 3
+# (3×약5GB + vLLM ≈ 19.8GB < 24GB). vLLM 미구동 시 제한 없음(5). 재정의: GPU_MAX_WITH_LLM.
+# 판정은 GUI 기동 시점 기준 — vLLM을 나중에 띄우/내리면 GUI 재시작으로 반영.
+GPU_MAX_WITH_LLM = int(_env('GPU_MAX_WITH_LLM', '3') or '3')
+GPU_COUNT_MAX = min(len(GPU_CONTAINERS), GPU_MAX_WITH_LLM) if FINISH_NETWORK else len(GPU_CONTAINERS)
 
 
 def _load_gpu_count():

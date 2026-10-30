@@ -32,7 +32,7 @@
 - `./hymt2_repair.sh` — 배타 모드 수리 패스(기본 `HYMT2_EXCLUSIVE=1`): 로컬 LLM 동시 1개 원칙. 소형 정지 → 7B 기동 → 스플(`tmp/hymt2-spill/`) 일괄 수리 → 캐시(`tmp/hymt2-cache/`) 저장 → 소형 재기동
 - `configs/` — `gpt-kor.toml`(번역), `pass_a.toml`(pre 전용), `book-ocr.toml`(OCR), `hd-kor.toml`(hdTrans), `hymt2-kor.toml`(Hy-MT2 로컬 LLM)
 - `demo/doc/docker-compose-web-with-gpu.yml` — GPU 컨테이너 5서비스 (gpu1~5)
-- 기동/종료: `./startup.sh [--resume <폴더>...]` / `./shutdown.sh`
+- 기동/종료: `./startup.sh [--resume <폴더>...]` / `./shutdown.sh` — startup이 vLLM 소형(hymt2-small, 전처리 GPU와 분리된 고정 LLM 컨테이너)도 함께 기동. GPU 목표 개수는 vLLM 감지 시 3으로 제한(`GPU_MAX_WITH_LLM`, 물리 GPU 공유 예산)
 - finish 레인 동시성: env `FINISH_CONCURRENCY`(기본 3), `FINISH_API_CONCURRENCY`(기본 3). GPU 목표 개수 초기값: env `GPU_CONTAINER_COUNT`(기본 3)
 
 ## 커밋 컨벤션

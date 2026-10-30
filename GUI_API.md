@@ -39,6 +39,13 @@
 응답: `{"lines": [...], "total": <누적 줄수>}`
 
 ### `GET /api/browse?path=<상대경로>` — 폴더 탐색
+### GPU 컨테이너 개수 상한 (로컬 LLM 동시 운용)
+
+전처리 GPU 컨테이너와 로컬 LLM(vLLM `hymt2-small`, 고정 상시 ≈4.8GB)은 같은 물리 GPU를
+공유한다. GUI 기동 시 `hymt2` 네트워크(vLLM)가 감지되면 목표 개수 상한이 **5 → 3**으로
+제한된다 (`GPU_MAX_WITH_LLM` env로 조정, 기본 3. vLLM 미구동 시 제한 없음).
+vLLM을 나중에 띄우거나 내린 경우 GUI 재시작으로 반영.
+
 ### `GET /api/configs` — 설정 파일 목록
 
 `configs/` 의 toml 목록. 현재 제공 설정:

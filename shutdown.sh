@@ -37,6 +37,7 @@ fi
 
 echo "== 3/3 Docker 컨테이너 정지 (gpu1~5 + finish 잔여 컨테이너) =="
 docker compose --env-file .env -f demo/doc/docker-compose-web-with-gpu.yml stop
+docker compose -f demo/doc/docker-compose-hymt2.yml --profile escalation stop
 # finish 레인은 docker run(compose 밖)이라 별도 청소 — GUI가 이미 취소했지만 못 받은 고아 방지
 n=$(docker ps -q --filter name=mit-finish | wc -l)
 if [ "$n" -gt 0 ]; then
