@@ -28,7 +28,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, 'data')
 TRANSLATED_DIR = os.path.join(ROOT, 'translated')
 CONFIG_DIR = os.path.join(ROOT, 'configs')
-DEFAULT_CONFIG = 'gpt-kor.toml'  # 설정 드롭다운의 기본 선택
+DEFAULT_CONFIG = 'hymt2-kor.toml'  # 설정 드롭다운 기본 선택·요청 config 생략 시 폴백 (Hy-MT2 로컬 LLM)
 FONT_PATH = '/app/fonts/SUIT-Medium.ttf'  # 렌더링 폰트 (컨테이너 내부 경로, fonts/ 마운트)
 BATCH_SIZE = 12  # 파이프라인 배치 크기: GPU 전처리 → LLM 동시(12페이지) → GPU 후처리
 IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
@@ -1090,6 +1090,8 @@ def make_job(rel, config, container, save_text, overwrite, mode=None):
             'created_at': time.time(), 'started_at': None, 'finished_at': None,
         }
         JOB_ORDER.append(jid)
+    print(f"[job] 등록 id={jid} folder={rel} config={config} mode={mode or DEFAULT_MODE} "
+          f"save_text={bool(save_text)} overwrite={bool(overwrite)}", flush=True)
     return jid
 
 
@@ -1162,7 +1164,7 @@ def duplicate_result_check(rel, overwrite, mode='full'):
 def api_add_job(body):
     rel = safe_under_data(body.get('folder', ''))
     container = body.get('container', '')
-    config = body.get('config') or DEFAULT_CONFIG  # 생략 시 GLM(gpt-kor.toml)
+    config = body.get('config') or DEFAULT_CONFIG  # 생략 시 Hy-MT2(hymt2-kor.toml)
     mode = body.get('mode') or DEFAULT_MODE
     if mode not in MODES:
         return {'error': f'알 수 없는 모드: {mode}'}, 400
@@ -1198,7 +1200,7 @@ def api_bulk_add(body):
           f'overwrite={body.get("overwrite")}', flush=True)
     rel = safe_under_data(body.get('folder', ''))
     container = body.get('container', '')
-    config = body.get('config') or DEFAULT_CONFIG  # 생략 시 GLM(gpt-kor.toml)
+    config = body.get('config') or DEFAULT_CONFIG  # 생략 시 Hy-MT2(hymt2-kor.toml)
     mode = body.get('mode') or DEFAULT_MODE
     if mode not in MODES:
         return {'error': f'알 수 없는 모드: {mode}'}, 400
@@ -1312,8 +1314,9 @@ def api_gpu(body):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):  # 콘솔 로그 정리
-        pass
+    def log_message(self, fmt, *args):
+        # API 감사 로그 — 어느 요청이 어떤 config로 들어오는지 /tmp/translate_gui.log 에 남긴다
+        print(f"[http] {self.address_string()} {fmt % args}", flush=True)
 
     # ---- helpers
     def _json(self, obj, code=200):
