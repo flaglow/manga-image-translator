@@ -101,19 +101,25 @@ def classify_from_cache(cache_dir, dest, overwrite):
             image_count += 1
             stem = os.path.splitext(f)[0]
             png_path = os.path.join(root, stem + '.png')
-            dest_path = os.path.join(dest, os.path.relpath(os.path.join(root, stem), cache_dir) + '.png')
-            if not overwrite and os.path.exists(dest_path):
-                logger.debug(f'Skipping already finished: "{dest_path}"')
-                skipped += 1
-                continue
             if not os.path.exists(png_path):
                 logger.warning(f'Cache png missing, cannot repair: "{stem}"')
                 continue
             try:
                 with open(os.path.join(root, f), 'rb') as fp:
-                    regions = pickle.load(fp).get('regions') or []
+                    data = pickle.load(fp)
+                regions = data.get('regions') or []
             except Exception:
                 logger.warning(f'Cache pkl corrupt: "{stem}"')
+                continue
+            # 산출물 파일명 — pre가 기록한 원본명(src, 확장 포함) 우선. 계약: refit분은
+            # 원본과 완전히 같은 이름으로 떨어져야 수거 apply의 완전일치 매칭이 성립한다.
+            # 구버전 캐시(src 없음)는 폴백 stem.png.
+            src_name = data.get('src') or (stem + '.png')
+            rel_dir = os.path.relpath(os.path.join(root, stem), cache_dir)
+            dest_path = os.path.join(dest, os.path.dirname(rel_dir), src_name)
+            if not overwrite and os.path.exists(dest_path):
+                logger.debug(f'Skipping already finished: "{dest_path}"')
+                skipped += 1
                 continue
             if regions:
                 render_pages.append((None, dest_path, png_path, regions))

@@ -335,15 +335,20 @@ class MangaTranslatorLocal(MangaTranslator):
         with open(text_output_file, 'a', encoding='utf-8') as f:
             f.write(s)
 
-    def _dump_preprocess_cache(self, ctx, output_dest):
+    def _dump_preprocess_cache(self, ctx, output_dest, src_path=''):
         if getattr(ctx, 'inpaint_failed', False):
             return
         regions = list(ctx.text_regions) if ctx.text_regions else []
         if regions and getattr(ctx, 'img_inpainted', None) is None:
             return
         pkl_path = os.path.splitext(output_dest)[0] + '.pkl'
+        # src: 원본 파일명(확장 포함) — refit(/api/repair)이 산출물 이름·확장을
+        # 원본과 동일하게 유지하는 근거. 없으면 구버전 캐시(fallback: stem.png).
+        data = {'version': 1, 'regions': regions}
+        if src_path:
+            data['src'] = os.path.basename(src_path)
         with open(pkl_path + '.tmp', 'wb') as f:
-            pickle.dump({'version': 1, 'regions': regions}, f, protocol=4)
+            pickle.dump(data, f, protocol=4)
         os.replace(pkl_path + '.tmp', pkl_path)
         logger.info(f'Preprocess cache dumped: "{pkl_path}" ({len(regions)} regions)')
 
@@ -466,7 +471,7 @@ class MangaTranslatorLocal(MangaTranslator):
                         else:
                             save_result(ctx.result, output_dest, save_ctx)
                         if self.preprocess_dump:
-                            self._dump_preprocess_cache(ctx, output_dest)
+                            self._dump_preprocess_cache(ctx, output_dest, file_path)
                         translated_count += 1
                         
                         # 保存文本文件（如果需要）
@@ -530,7 +535,7 @@ class MangaTranslatorLocal(MangaTranslator):
                                 try:
                                     os.makedirs(os.path.dirname(output_dest), exist_ok=True)
                                     img.save(output_dest, format='PNG', compress_level=1)
-                                    self._dump_preprocess_cache(ctx, output_dest)
+                                    self._dump_preprocess_cache(ctx, output_dest, file_path)
                                     translated_count += 1
                                     logger.info(f'Textless page cached as-is: "{output_dest}"')
                                 except Exception as save_error:

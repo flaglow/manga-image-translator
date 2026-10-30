@@ -1217,6 +1217,111 @@ def duplicate_result_check(rel, overwrite, mode='full'):
     return None
 
 
+_ADULT_KEYS = None
+_EUPH_RE = re.compile(r'그곳|그기|그거|그것|성기|음부')
+_REFUSAL_RE = re.compile(r'번역할 수 없|번역해 드릴 수 없|해당 텍스트는|이 요청은 번역')
+
+
+def _adult_keys():
+    """성인 용어집 키 (순화 측정용) — 로드 1회 캐시."""
+    global _ADULT_KEYS
+    if _ADULT_KEYS is None:
+        keys = []
+        try:
+            with open(os.path.join(ROOT, 'configs', 'hymt2-adult-dict.tsv'), encoding='utf-8') as f:
+                keys = [l.split('\t')[0] for l in f if '\t' in l and not l.startswith('#')]
+        except OSError:
+            pass
+        _ADULT_KEYS = keys
+    return _ADULT_KEYS
+
+
+def _quality_scan_book(log_path):
+    """세그먼트 로그 → 책 품질 지표. 패스마다 append되므로 페이지별 마지막 기록만 사용
+    (최종 산출 근사). 반환: segments/blanks/euph/refusals."""
+    pages = {}
+    bad_lines = 0
+    try:
+        with open(log_path, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    bad_lines += 1
+                    continue
+                pages[row.get('page', '')] = row.get('segs', [])
+    except OSError:
+        return None
+    segments = blanks = euph = refusals = 0
+    adult_keys = _adult_keys()
+    for segs in pages.values():
+        for orig, tr in segs:
+            segments += 1
+            tr = tr or ''
+            if not tr.strip():
+                blanks += 1
+            if _REFUSAL_RE.search(tr):
+                refusals += 1
+            if adult_keys and any(k in orig for k in adult_keys) and _EUPH_RE.search(tr):
+                euph += 1
+    return {'segments': segments, 'blanks': blanks, 'euph': euph,
+            'refusals': refusals, 'bad_log_lines': bad_lines}
+
+
+def api_batches_status(date):
+    """GET /api/batches/<date>/status — 폴더별 큐+품질 통합 상태 (릴레이 계약 E.1).
+    batch.state: repairing(진행 중) > failed(빈칸/거부/큐 에러) > done.
+    호출마다 tmp/hymt2-log/<date>/quality-report.json 갱신(E.2) — 수거 기록 보관용."""
+    date = re.sub(r'[^0-9a-zA-Z_-]', '', date)
+    pre_base = os.path.join(ROOT, 'tmp', 'gpu_pre', date)
+    log_base = os.path.join(ROOT, 'tmp', 'hymt2-log', date)
+    books = set()
+    if os.path.isdir(pre_base):
+        books.update(b for b in os.listdir(pre_base)
+                     if os.path.isdir(os.path.join(pre_base, b)))
+    if os.path.isdir(log_base):
+        # 로그는 책별 '파일'(<book>.jsonl) — 확장자 제거한 스템이 책 이름
+        books.update(os.path.splitext(f)[0] for f in os.listdir(log_base)
+                     if f.endswith('.jsonl'))
+    if not books:
+        return {'error': f'배치 없음: {date}'}, 404
+    with LOCK:
+        jobs_by_folder = {}
+        for j in JOBS.values():
+            jobs_by_folder.setdefault(j['folder'], []).append(j)
+    folders, active, failed = [], 0, 0
+    for book in sorted(books):
+        rel = f'{date}/{book}'
+        js = jobs_by_folder.get(rel, [])
+        active_js = [j for j in js if j.get('status') in ('queued', 'running')]
+        err_js = [j for j in js if j.get('status') == 'error']
+        q = _quality_scan_book(os.path.join(log_base, book + '.jsonl'))
+        entry = {'folder': rel, 'quality': q,
+                 'queue': {'active': len(active_js), 'errors': len(err_js)}}
+        if active_js:
+            entry['state'] = 'repairing'
+            active += 1
+        elif (q and (q['blanks'] or q['refusals'])) or err_js:
+            entry['state'] = 'failed'
+            entry['reason'] = ('빈칸/거부 잔여' if q and (q['blanks'] or q['refusals'])
+                               else str(err_js[-1].get('error', ''))[:80])
+            failed += 1
+        else:
+            entry['state'] = 'done'
+        folders.append(entry)
+    state = 'repairing' if active else ('failed' if failed else 'done')
+    report = {'date': date, 'generated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+              'state': state, 'books': len(folders), 'failed': failed,
+              'folders': folders}
+    try:
+        os.makedirs(log_base, exist_ok=True)
+        with open(os.path.join(log_base, 'quality-report.json'), 'w', encoding='utf-8') as f:
+            json.dump(report, f, ensure_ascii=False, indent=1)
+    except OSError as e:
+        print(f'[quality] 리포트 쓰기 실패: {e}', flush=True)
+    return report, 200
+
+
 def api_repair(body):
     """번역 수리 — 캐시 기반 재번역·재렌더 (refit 모드).
     원본 유무 무관: gpu_pre 캐시(png+pkl)만으로 렌더, 출력은 translated/<폴더> 강제 덮어쓰기.
@@ -1446,6 +1551,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(api_summary())
         elif u.path == '/api/browse':
             self._json(api_browse(unquote(q.get('path', [''])[0])))
+        elif (m := re.match(r'^/api/batches/([0-9a-zA-Z_-]+)/status$', u.path)):
+            res, code = api_batches_status(m.group(1))
+            self._json(res, code)
         elif u.path == '/api/configs':
             cfgs = sorted(f for f in os.listdir(CONFIG_DIR) if f.endswith('.toml')) \
                 if os.path.isdir(CONFIG_DIR) else []
