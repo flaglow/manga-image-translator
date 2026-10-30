@@ -66,11 +66,16 @@ else
     fi
     # finish 레인 동시성 + GPU 목표 개수 설정 전달 (우선순위: 프로세스 env → .env → 기본값.
     # GPU_CONTAINER_COUNT는 대시보드에서 바꾸면 .gpu_count 파일에 저장되어 여기 값보다 우선한다)
-    export FINISH_CONCURRENCY="${FINISH_CONCURRENCY:-3}"
+    # FINISH_CONCURRENCY 는 설정하지 않는다 — GUI가 적응형으로 결정
+    # (vLLM 감지 시 10, GLM 운용 시 3). 명시 지정은 .env 의 FINISH_CONCURRENCY 로.
     export FINISH_API_CONCURRENCY="${FINISH_API_CONCURRENCY:-3}"
     export GPU_CONTAINER_COUNT="${GPU_CONTAINER_COUNT:-3}"
-    echo "   finish 레인: 컨테이너 ${FINISH_CONCURRENCY}개 × API 동시성 ${FINISH_API_CONCURRENCY} · GPU 목표 ${GPU_CONTAINER_COUNT}개"
-    nohup python3 translate_gui.py > /tmp/translate_gui.log 2>&1 &
+    echo "   finish 레인: 컨테이너(GUI 적응형: vLLM 10/GLM 3) × API 동시성 ${FINISH_API_CONCURRENCY} · GPU 목표 ${GPU_CONTAINER_COUNT}개"
+    if systemctl --user start translate-gui 2>/dev/null; then
+        echo "   (systemd 서비스 translate-gui 기동 — Restart=always 적용)"
+    else
+        nohup python3 translate_gui.py > /tmp/translate_gui.log 2>&1 &
+    fi
     for i in $(seq 1 10); do
         curl -sf -o /dev/null http://127.0.0.1:8787/api/summary && break
         sleep 1

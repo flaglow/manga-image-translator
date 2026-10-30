@@ -225,6 +225,47 @@ GPT 문서의 "유사일치는 자동 적용 금지, 참고로만" 원칙을 임
   재개 지원) → `configs/hymt2-vec/{emb.npy, meta.tsv, BUILD.json}` 재생성.
   git 제외(.gitignore) — configs/ 마운트로 컨테이너에 자동 반영.
 
+## 10. 운영 실측 (2026-10-30, 단일 4090 · 실배치)
+
+### 컨테이너 수 vs 처리량 (Pass A 전처리)
+
+| 구성 | 처리량 | VRAM | VRAM 효율 |
+|---|---|---|---|
+| GPU 1컨테이너 | 22.5 p/분 | 5.2GB | **4.3 p/분/GB** |
+| GPU 3컨테이너 | 34.5 p/분 | 15.6GB | 2.2 p/분/GB |
+
+- 3배 증설 → 처리량 +53% (컨테이너당 효율 49%↓). GPU 경합 확인 — vLLM 상시 운용
+  아키텍처에서는 1~2대 소수 정예가 합리적 (GUI 상한 3과 일치).
+
+### GPU 저활용 원인 (util 0~7% 구간 다수)
+
+- 병목은 GPU가 아니라 **단계별 GPU↔CPU 직렬 구조**: pre는 페이지마다
+  GPU(검출/OCR/inpaint)와 CPU(마스크·PIL·전후처리)를 왕복 — CPU 버스트 시
+  컨테이너 CPU 1,030%(10코어), GPU는 대기. 호스트 전체는 여유(24코어 load ~4).
+- vLLM 동시요청 실측 **0~3개** (10분 로그) — 배치 부족이 아니라 공급 부족.
+  페이지 시간 중 LLM은 짧은 버스트, 렌더(CPU)가 더 김. finish가 병목 아니므로
+  vLLM 저활용은 건강 신호. 배치 size 상향은 무의미.
+- 대응: `FINISH_CONCURRENCY` 적응형(로컬 LLM 10 / GLM 3 — GLM 429 한계와 분리),
+  pre 배치 상향은 차후 A/B.
+
+### 배치 실적 (21권+ ~1,990p, GPU 1컨테이너, ~40분)
+
+- pre 22.5 p/분 → finish 3레인 체이닝 병렬 소화, 전 구간 무중단.
+- 스플 503건 → 7B 수리 492건 → **캐시 544세그먼트** (재사용 자산화).
+  잔여 11건은 OCR 쓰레기 토큰(ER♡/gpt64 等) — 번역 불가 정상 거부.
+    차후: 수리 N회 초과 폐기 규칙 후보.
+- 교훈(운영 순서): 큐 소진 → `./hymt2_repair.sh` → 수거. 수리 전 수거하면
+  스플 구간이 빈 칸으로 렌더됨(수리본은 캐시 보존 — 재등장 시 즉시 재사용).
+
+### GUI 상주화 (systemd)
+
+- GUI는 세션/스크립트 종료와 무관하게 systemd 유저 서비스로 상주:
+  `systemctl --user start|stop|status translate-gui` (Restart=always,
+  로그 /tmp/translate_gui.log, 유닛 ~/.config/systemd/user/translate-gui.service).
+  startup.sh은 서비스 기동 우선(폴백 nohup), shutdown.sh은 서비스 정지 우선.
+- startup.sh이 FINISH_CONCURRENCY=3을 export해 적응형 기본을 덮어쓰던 버그 수정 —
+  이제 .env 명시 지정만 우선.
+
 ## 9. v2 후보 (v1 범위 밖)
 
 - 페이지 맥락 주입(공식 background_text 모드) — 직전 페이지 번역 누적 활용

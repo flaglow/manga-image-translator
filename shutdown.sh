@@ -29,7 +29,8 @@ else
 fi
 
 echo "== 2/3 대시보드 / API 서버 종료 =="
-if pkill -f '[t]ranslate_gui.py' 2>/dev/null; then
+systemctl --user stop translate-gui 2>/dev/null
+if pgrep -f '[t]ranslate_gui.py' >/dev/null 2>&1 && pkill -f '[t]ranslate_gui.py' 2>/dev/null; then
     echo "   종료됨 (큐는 사라지지만 완성/부분 결과물은 디스크에 남음)"
 else
     echo "   이미 꺼져 있음"
