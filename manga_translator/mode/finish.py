@@ -37,6 +37,9 @@ def parse_args():
     p.add_argument('--context-size', default=0, type=int, help='Pages of context are needed for translating the current page')
     p.add_argument('--post-dict', default=None, type=str, help='Path to the post-translation dictionary file')
     p.add_argument('--overwrite', action='store_true', help='Overwrite already finished images')
+    p.add_argument('--from-cache', action='store_true',
+                   help='Repair mode: render from gpu_pre cache only (original images may be gone). '
+                        'Output resolution follows the cache png.')
     p.add_argument('-v', '--verbose', action='store_true', help='Print debug info')
     return p.parse_args()
 
@@ -82,6 +85,37 @@ def count_cache_pkls(cache_dir: str) -> int:
     for _, _, files in os.walk(cache_dir):
         n += sum(1 for f in files if f.lower().endswith('.pkl'))
     return n
+
+
+def classify_from_cache(cache_dir, dest, overwrite):
+    """수리(refit) 모드 — 원본 없이 캐시(png+pkl)만으로 렌더 대상을 구성한다.
+    캐시가 없으면 스킵(원본 카피 불가), 출력은 캐시 해상도 PNG."""
+    render_pages = []
+    image_count = skipped = 0
+    for root, _subdirs, files in os.walk(cache_dir):
+        for f in natural_sort(files):
+            if not f.lower().endswith('.pkl'):
+                continue
+            image_count += 1
+            stem = os.path.splitext(f)[0]
+            png_path = os.path.join(root, stem + '.png')
+            dest_path = os.path.join(dest, os.path.relpath(os.path.join(root, stem), cache_dir) + '.png')
+            if not overwrite and os.path.exists(dest_path):
+                logger.debug(f'Skipping already finished: "{dest_path}"')
+                skipped += 1
+                continue
+            if not os.path.exists(png_path):
+                logger.warning(f'Cache png missing, cannot repair: "{stem}"')
+                continue
+            try:
+                with open(os.path.join(root, f), 'rb') as fp:
+                    regions = pickle.load(fp).get('regions') or []
+            except Exception:
+                logger.warning(f'Cache pkl corrupt: "{stem}"')
+                continue
+            if regions:
+                render_pages.append((None, dest_path, png_path, regions))
+    return render_pages, [], image_count, skipped
 
 
 def classify_pages(input_path, cache_dir, dest, overwrite):
@@ -159,11 +193,16 @@ async def main():
     set_main_logger(logger)
 
     input_path = os.path.abspath(os.path.expanduser(args.input))
-    if not os.path.isdir(input_path):
-        logger.error(f'Input folder not found: "{input_path}"')
-        sys.exit(1)
     dest = os.path.abspath(os.path.expanduser(args.dest)) if args.dest else input_path + '-finished'
     cache_dir = os.path.abspath(os.path.expanduser(args.cache or default_cache_dir(args.input)))
+
+    if args.from_cache:
+        render_pages, copy_pages, image_count, skipped = classify_from_cache(cache_dir, dest, args.overwrite)
+    else:
+        if not os.path.isdir(input_path):
+            logger.error(f'Input folder not found: "{input_path}"')
+            sys.exit(1)
+        render_pages, copy_pages, image_count, skipped = classify_pages(input_path, cache_dir, dest, args.overwrite)
 
     if args.font_path and not os.path.exists(args.font_path):
         logger.error(f'Font file not found: "{args.font_path}"')
@@ -190,8 +229,6 @@ async def main():
         'verbose': args.verbose,
     })
 
-    render_pages, copy_pages, image_count, skipped = classify_pages(input_path, cache_dir, dest, args.overwrite)
-
     pkl_count = count_cache_pkls(cache_dir)
     if pkl_count > image_count:
         logger.warning(f'Cache pkl count ({pkl_count}) exceeds source image count ({image_count})')
@@ -207,6 +244,16 @@ async def main():
     start_time = time.time()
     saved = 0
 
+    # 세그먼트 로그 — 책 단위 jsonl: 페이지별 (원문, 번역) 쌍. 향후 문제 세그먼트만
+    # 골라 수리(/api/repair)하는 근거가 된다. rel 규약: data/·tmp/gpu_pre/ 접두 제거.
+    rel_in = args.input.rstrip('/\\').replace('\\', '/')
+    for _prefix in ('data/', 'tmp/gpu_pre/'):
+        if rel_in.startswith(_prefix):
+            rel_in = rel_in[len(_prefix):]
+            break
+    os.makedirs('tmp/hymt2-log', exist_ok=True)
+    seg_log = open(os.path.join('tmp/hymt2-log', rel_in + '.jsonl'), 'a', encoding='utf-8')
+
     # Chunked translation + rendering, order preserved
     for chunk_start in range(0, len(render_pages), args.batch_size):
         chunk = render_pages[chunk_start:chunk_start + args.batch_size]
@@ -215,14 +262,22 @@ async def main():
         pair_metas = []
         for (file_path, dest_path, cache_png, regions) in chunk:
             try:
-                img = Image.open(file_path)
-                img_rgb, img_alpha = load_image(img)
                 cache_img = Image.open(cache_png)
                 ctx = Context()
-                ctx.input = img
-                ctx.img_rgb = img_rgb
-                ctx.img_alpha = img_alpha
-                ctx.img_inpainted = np.array(cache_img.convert('RGB'))
+                if file_path is None:
+                    # 수리 모드 — 원본 없음: 캐시 png를 원본·인페인트 겸용 (출력=캐시 해상도)
+                    img_rgb = np.array(cache_img.convert('RGB'))
+                    ctx.input = cache_img
+                    ctx.img_rgb = img_rgb
+                    ctx.img_alpha = None
+                    ctx.img_inpainted = img_rgb
+                else:
+                    img = Image.open(file_path)
+                    img_rgb, img_alpha = load_image(img)
+                    ctx.input = img
+                    ctx.img_rgb = img_rgb
+                    ctx.img_alpha = img_alpha
+                    ctx.img_inpainted = np.array(cache_img.convert('RGB'))
                 ctx.text_regions = regions
                 ctx.from_lang = 'auto'
                 ctx.verbose = mt.verbose
@@ -258,10 +313,17 @@ async def main():
                     save_ctx.save_quality = 100
                     save_result(result, dest_path, save_ctx)
                     logger.info(f'Saving "{dest_path}"')
-                else:
+                elif file_path is not None:
                     shutil.copyfile(file_path, dest_path)
                     logger.info(f'Saving(original) "{dest_path}"')
                 saved += 1
+                # 세그먼트 로그 — 페이지별 (원문, 번역) 기록. 향후 문제 세그먼트만 골라
+                # 수리(/api/repair)하는 근거 데이터.
+                seg_log.write(json.dumps({
+                    'page': os.path.splitext(os.path.basename(dest_path))[0],
+                    'segs': [[r.text, r.translation] for r in (ctx.text_regions or [])],
+                }, ensure_ascii=False) + '\n')
+                seg_log.flush()
             except Exception as e:
                 logger.error(f'Failed to process page: {file_path}, error: {e}')
 
@@ -283,6 +345,7 @@ async def main():
             logger.error(f'Failed to copy original: {file_path}, error: {e}')
 
     total_time = time.time() - start_time
+    seg_log.close()
     logger.info(f'Done! Finished {saved} images in {total_time:.1f}s')
     return saved
 

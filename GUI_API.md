@@ -46,6 +46,27 @@
 제한된다 (`GPU_MAX_WITH_LLM` env로 조정, 기본 3. vLLM 미구동 시 제한 없음).
 vLLM을 나중에 띄우거나 내린 경우 GUI 재시작으로 반영.
 
+### `POST /api/repair` — 번역 수리 (refit: 캐시 기반 재번역·재렌더)
+
+품질 문제(용어 순화·말투), 빈 칸(스필 미수리), 거부 문구 등 **이미 이미지로 렌더된 산출물**을
+현재 번역기(용어집·프롬프트·게이트 개선 반영)로 다시 뽑는다. 원본 유무 무관 —
+`tmp/gpu_pre/` 캐시(png+pkl)만으로 재렌더하며 출력 해상도는 캐시를 따른다.
+GPU 전처리 없음(finish-only) → 414권 전량도 시간 단위. 결과는 `translated/<폴더>` 강제 덮어쓰기.
+
+```json
+// 특정 권들
+{"folders": ["20261030/[Konomi] xxx", "20261022/yyy"]}
+// 캐시 전수
+{"all": true}
+```
+응답: `{"queued": N, "jobs": [...], "errors": [...]}`
+
+- 후보 선정: `.omc/research/hymt2-poc/repair_candidates.py`가 권별 문제 밀도
+  (거부 다수역·성인 용어·로그 빈칸) 순위표를 만든다.
+- 수리 후 스플이 쌓이면 `./hymt2_repair.sh` 후 재수리(2패스)로 빈 칸 회수.
+- 세그먼트 로그: refit 포함 모든 finish 실행이 `tmp/hymt2-log/<폴더>.jsonl`에
+  페이지별 (원문, 번역)을 기록 — 이후 문제 세그먼트 탐지·수술적 수리의 근거.
+
 ### `GET /api/configs` — 설정 파일 목록
 
 `configs/` 의 toml 목록. 현재 제공 설정:

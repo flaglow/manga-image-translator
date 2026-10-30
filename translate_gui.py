@@ -35,7 +35,7 @@ IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
 LOG_KEEP = 3000  # 작업당 메모리에 유지할 로그 줄 수
 PRE_DIR = os.path.join(ROOT, 'tmp', 'gpu_pre')  # Pass A(사전처리) 캐시 루트 — 컨테이너에 /app/tmp로 마운트
 PASS_A_CONFIG = 'pass_a.toml'  # pre 모드 전용 설정 (번역·렌더링 비활성)
-MODES = ('full', 'pre', 'finish')
+MODES = ('full', 'pre', 'finish', 'refit')
 DEFAULT_MODE = 'full'  # 세션 기본 모드 — main()의 --mode 플래그로 갱신
 
 def _load_env_file():
@@ -352,6 +352,15 @@ WORKERS = {}    # container -> worker thread
 
 # ---------------------------------------------------------------- 유틸
 
+def count_cache_pkls(path):
+    """refit 작업 진행률용 — gpu_pre 캐시 pkl 수"""
+    n = 0
+    if os.path.isdir(path):
+        for _r, _d, files in os.walk(path):
+            n += sum(1 for f in files if f.lower().endswith('.pkl'))
+    return n
+
+
 def count_images(path):
     try:
         return sum(1 for f in os.listdir(path)
@@ -439,7 +448,7 @@ def worker_loop(container):
             best_key = None
             for jid in JOB_ORDER:
                 j = JOBS.get(jid)
-                if j and j['status'] == 'queued' and j.get('mode') != 'finish' \
+                if j and j['status'] == 'queued' and j.get('mode') not in ('finish', 'refit') \
                         and j['container'] in (None, container):
                     key = j.get('total') or 10 ** 9  # 파일 수 모르는 작업은 마지막으로
                     if best_key is None or key < best_key:
@@ -448,7 +457,10 @@ def worker_loop(container):
                 job['container'] = container
                 job['status'] = 'running'
                 job['started_at'] = time.time()
-                job['total'] = count_images(os.path.join(DATA_DIR, job['folder']))
+                if job['mode'] == 'refit':
+                    job['total'] = count_cache_pkls(os.path.join(ROOT, 'tmp/gpu_pre', job['folder']))
+                else:
+                    job['total'] = count_images(os.path.join(DATA_DIR, job['folder']))
                 if job.get('overwrite'):
                     job['saved'] = 0
                 elif job.get('mode') == 'pre':
@@ -476,7 +488,7 @@ def finish_worker_loop():
             best_key = None
             for jid in JOB_ORDER:
                 j = JOBS.get(jid)
-                if j and j['status'] == 'queued' and j.get('mode') == 'finish':
+                if j and j['status'] == 'queued' and j.get('mode') in ('finish', 'refit'):
                     key = j.get('total') or 10 ** 9  # 파일 수 모르는 작업은 마지막으로
                     if best_key is None or key < best_key:
                         job, best_key = j, key
@@ -484,7 +496,10 @@ def finish_worker_loop():
                 job['container'] = 'finish'  # 표시용 — docker exec 대상 아님
                 job['status'] = 'running'
                 job['started_at'] = time.time()
-                job['total'] = count_images(os.path.join(DATA_DIR, job['folder']))
+                if job['mode'] == 'refit':
+                    job['total'] = count_cache_pkls(os.path.join(ROOT, 'tmp/gpu_pre', job['folder']))
+                else:
+                    job['total'] = count_images(os.path.join(DATA_DIR, job['folder']))
                 job['saved'] = 0 if job.get('overwrite') else translated_count(job['folder'])
         if job is None:
             time.sleep(1)
@@ -821,7 +836,7 @@ def run_job(job):
                '--batch-concurrent',
                '--models-ttl', '300',
                '--use-gpu']
-    elif mode == 'finish':
+    elif mode in ('finish', 'refit'):
         # GPU 컨테이너와 무관한 독립 CPU 컨테이너(docker run) — GPU 워커 레인을 점유하지 않는다
         cmd = ['docker', 'run', '--rm', '--name', job.get('finish_cname') or 'mit-finish-adhoc',
                '--user', '1000:1000']
@@ -842,6 +857,9 @@ def run_job(job):
                 '--config-file', f"/app/configs/{job['config']}",
                 '--font-path', FONT_PATH,
                 '--batch-size', str(BATCH_SIZE)]
+        if mode == 'refit':
+            # 수리 — 원본 없이 캐시로 재번역·재렌더 (품질 수정·거부문구·빈칸 회수)
+            cmd += ['--from-cache', '--overwrite']
     else:
         cmd = ['docker', 'exec', container, 'python', '-m', 'manga_translator', 'local', '-v',
                '-i', f'data/{rel}',
@@ -1144,16 +1162,21 @@ def start_workers():
 
 def validate_job(rel, config, container, mode='full'):
     """작업 추가 공통 검증 → (오류메시지, 코드) 또는 (None, None)"""
+    if mode == 'refit':
+        # 수리 — 원본 data 없이 캐시만으로 수행. 캐시 존재만 확인(아래서 pre_pair_count 재확인).
+        if not rel or not os.path.isdir(os.path.join(ROOT, 'tmp', 'gpu_pre', rel)):
+            return 'gpu_pre 캐시가 없는 폴더입니다', 400
+        return None, None
     if not rel or not os.path.isdir(os.path.join(DATA_DIR, rel)):
         return '폴더가 유효하지 않습니다', 400
     if count_images(os.path.join(DATA_DIR, rel)) == 0:
         return '폴더에 이미지가 없습니다', 400
     if not os.path.isfile(os.path.join(CONFIG_DIR, config)):
         return f'설정 파일 없음: {config}', 400
-    if mode == 'finish' and pre_pair_count(rel) == 0:
+    if mode in ('finish', 'refit') and pre_pair_count(rel) == 0:
         return '사전처리 캐시가 없습니다 (pre 모드로 먼저 실행하세요)', 400
-    if mode != 'finish':
-        # finish는 독립 CPU 컨테이널(docker run) 레인 — GPU 컨테이너 검사 대상 아님.
+    if mode not in ('finish', 'refit'):
+        # finish·refit은 독립 CPU 컨테이널(docker run) 레인 — GPU 컨테이너 검사 대상 아님.
         # 정지 상태의 컨테이너는 허용 — 오토스케일러/run_job 기동 가드가 작업 시작 전에 띄운다
         if container and container != 'auto':
             if not any(c['name'] == container for c in docker_containers()):
@@ -1192,6 +1215,37 @@ def duplicate_result_check(rel, overwrite, mode='full'):
         if dup >= total_in:
             return f'translated/{rel}에 이미 전체 결과가 있습니다 ({dup}/{total_in}장). 강제 재번역은 "기존 결과 덮어쓰기"를 체크하세요.'
     return None
+
+
+def api_repair(body):
+    """번역 수리 — 캐시 기반 재번역·재렌더 (refit 모드).
+    원본 유무 무관: gpu_pre 캐시(png+pkl)만으로 렌더, 출력은 translated/<폴더> 강제 덮어쓰기.
+    품질 문제(용어 순화·말투), 빈 칸(스필 미수리), 거부 문구 렌더 등 이미 이미지가 된
+    산출물을 현재 번역기(용어집·프롬프트 게이트 개선 반영)로 되살린다.
+    body: {"folders": ["20261030/xxx", ...]} 또는 {"all": true} (gpu_pre 전수)"""
+    folders = body.get('folders') or []
+    if body.get('all'):
+        base = os.path.join(ROOT, 'tmp', 'gpu_pre')
+        for date_dir in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+            for book in sorted(os.listdir(os.path.join(base, date_dir))):
+                if os.path.isdir(os.path.join(base, date_dir, book)):
+                    folders.append(f'{date_dir}/{book}')
+    queued, errors = [], []
+    for rel in folders:
+        rel = rel.strip('/')
+        err, _ = validate_job(rel, DEFAULT_CONFIG, None, 'refit')
+        if err:
+            errors.append({'folder': rel, 'error': err})
+            continue
+        jid = make_job(rel, DEFAULT_CONFIG, None, False, True, mode='refit')
+        if jid:
+            queued.append({'id': jid, 'folder': rel})
+        else:
+            errors.append({'folder': rel, 'error': '이미 큐에 있음'})
+    if queued:
+        start_workers()
+    return {'queued': len(queued), 'jobs': queued, 'errors': errors,
+            'hint': 'refit은 캐시 기반 재번역·재렌더 — 원본 없어도 수행, 결과는 덮어쓴다'}, 200
 
 
 def api_add_job(body):
@@ -1425,6 +1479,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(res, code)
         elif u.path == '/api/gpu':
             res, code = api_gpu(self._body())
+            self._json(res, code)
+        elif u.path == '/api/repair':
+            res, code = api_repair(self._body())
             self._json(res, code)
         elif u.path.startswith('/api/jobs/') and u.path.endswith('/cancel'):
             jid = u.path.split('/')[3]
