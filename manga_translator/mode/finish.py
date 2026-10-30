@@ -40,6 +40,12 @@ def parse_args():
     p.add_argument('--from-cache', action='store_true',
                    help='Repair mode: render from gpu_pre cache only (original images may be gone). '
                         'Output resolution follows the cache png.')
+    p.add_argument('--aug-log', default='',
+                   help='Augment mode: segment log jsonl — cache 영역 텍스트를 로그의 일본어 '
+                        '원문으로 치환해 재번역(원본 없는 번역본 보강). 페이지별 순서 매칭, '
+                        '세그먼트 수 불일치 페이지는 스킵(현재 출력 유지).')
+    p.add_argument('--stems', default='',
+                   help='Comma file or list of page stems to process (augment 선별용). 비면 전체.')
     p.add_argument('-v', '--verbose', action='store_true', help='Print debug info')
     return p.parse_args()
 
@@ -85,6 +91,22 @@ def count_cache_pkls(cache_dir: str) -> int:
     for _, _, files in os.walk(cache_dir):
         n += sum(1 for f in files if f.lower().endswith('.pkl'))
     return n
+
+
+def load_aug_log(path):
+    """증강 로그 — 페이지별 마지막 기록(패스 중복 append 대비)의 원문 목록."""
+    pages = {}
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                pages[row.get('page', '')] = [o for o, _t in row.get('segs', [])]
+    except OSError:
+        return {}
+    return pages
 
 
 def classify_from_cache(cache_dir, dest, overwrite):
@@ -208,6 +230,39 @@ async def main():
 
     if args.from_cache:
         render_pages, copy_pages, image_count, skipped = classify_from_cache(cache_dir, dest, args.overwrite)
+        if args.aug_log:
+            # 보강: 캐시 영역 텍스트(번역본 OCR — 폐기)를 로그의 일본어 원문으로 치환.
+            # 순서 매칭: 로그 segs 순서 = 원 패스 영역(읽기 순)과 1:1. 수 불일치 페이지는
+            # 렌더에서 빼 현재 번역본이 그대로 유지되게 한다.
+            aug = load_aug_log(args.aug_log)
+            matched = prop = mismatch = unmatched_page = 0
+            kept = []
+            for page in render_pages:
+                _fp, dest_path, _png, regions = page
+                stem = os.path.splitext(os.path.basename(dest_path))[0]
+                origs = aug.get(stem)
+                if not origs:
+                    unmatched_page += 1
+                    continue
+                m, n = len(regions), len(origs)
+                if m == n:
+                    for r, o in zip(regions, origs):
+                        r.text = o
+                    matched += 1
+                    kept.append(page)
+                    continue
+                # 수 불일치 — 검출기의 병합/분할 차이. 차가 작으면 읽기 순서 비례
+                # 매핑으로 치환(양쪽 다 같은 말풍선의 읽기 순). 차이 크면 스킵.
+                if abs(m - n) <= 2:
+                    for i, r in enumerate(regions):
+                        r.text = origs[min(i * n // m, n - 1)]
+                    prop += 1
+                    kept.append(page)
+                    continue
+                mismatch += 1
+            render_pages = kept
+            copy_pages = []  # 보강은 렌더 대상만 — 텍스트 없음 페이지는 현재본 유지
+            logger.info(f'Augment: 정확 {matched} · 비례 {prop} · 스킵 {mismatch} · 로그없음 {unmatched_page}')
     else:
         if not os.path.isdir(input_path):
             logger.error(f'Input folder not found: "{input_path}"')
@@ -257,7 +312,7 @@ async def main():
     # 세그먼트 로그 — 책 단위 jsonl: 페이지별 (원문, 번역) 쌍. 향후 문제 세그먼트만
     # 골라 수리(/api/repair)하는 근거가 된다. rel 규약: data/·tmp/gpu_pre/ 접두 제거.
     rel_in = args.input.rstrip('/\\').replace('\\', '/')
-    for _prefix in ('data/', 'tmp/gpu_pre/'):
+    for _prefix in ('data/', 'tmp/gpu_pre/', 'translated/'):
         if rel_in.startswith(_prefix):
             rel_in = rel_in[len(_prefix):]
             break
@@ -330,9 +385,16 @@ async def main():
                 saved += 1
                 # 세그먼트 로그 — 페이지별 (원문, 번역) 기록. 향후 문제 세그먼트만 골라
                 # 수리(/api/repair)하는 근거 데이터.
+                segs = []
+                for r in (ctx.text_regions or []):
+                    try:
+                        bbox = [int(v) for v in r.xyxy]
+                    except Exception:
+                        bbox = None
+                    segs.append([r.text, r.translation] + ([bbox] if bbox else []))
                 seg_log.write(json.dumps({
                     'page': os.path.splitext(os.path.basename(dest_path))[0],
-                    'segs': [[r.text, r.translation] for r in (ctx.text_regions or [])],
+                    'segs': segs,
                 }, ensure_ascii=False) + '\n')
                 seg_log.flush()
             except Exception as e:

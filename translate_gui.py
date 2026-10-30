@@ -35,7 +35,7 @@ IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif'}
 LOG_KEEP = 3000  # 작업당 메모리에 유지할 로그 줄 수
 PRE_DIR = os.path.join(ROOT, 'tmp', 'gpu_pre')  # Pass A(사전처리) 캐시 루트 — 컨테이너에 /app/tmp로 마운트
 PASS_A_CONFIG = 'pass_a.toml'  # pre 모드 전용 설정 (번역·렌더링 비활성)
-MODES = ('full', 'pre', 'finish', 'refit')
+MODES = ('full', 'pre', 'finish', 'refit', 'augment')
 DEFAULT_MODE = 'full'  # 세션 기본 모드 — main()의 --mode 플래그로 갱신
 
 def _load_env_file():
@@ -459,6 +459,8 @@ def worker_loop(container):
                 job['started_at'] = time.time()
                 if job['mode'] == 'refit':
                     job['total'] = count_cache_pkls(os.path.join(ROOT, 'tmp/gpu_pre', job['folder']))
+                elif job['mode'] == 'augment':
+                    job['total'] = count_images(os.path.join(ROOT, 'translated', job['folder']))
                 else:
                     job['total'] = count_images(os.path.join(DATA_DIR, job['folder']))
                 if job.get('overwrite'):
@@ -498,6 +500,8 @@ def finish_worker_loop():
                 job['started_at'] = time.time()
                 if job['mode'] == 'refit':
                     job['total'] = count_cache_pkls(os.path.join(ROOT, 'tmp/gpu_pre', job['folder']))
+                elif job['mode'] == 'augment':
+                    job['total'] = count_images(os.path.join(ROOT, 'translated', job['folder']))
                 else:
                     job['total'] = count_images(os.path.join(DATA_DIR, job['folder']))
                 job['saved'] = 0 if job.get('overwrite') else translated_count(job['folder'])
@@ -564,7 +568,7 @@ def _gpu_job_count(statuses=('queued', 'running')):
     with LOCK:
         for jid in JOB_ORDER:
             j = JOBS.get(jid)
-            if j and j.get('mode') in ('pre', 'full') and j['status'] in statuses:
+            if j and j.get('mode') in ('pre', 'full', 'augment') and j['status'] in statuses:
                 n += 1
     return n
 
@@ -836,6 +840,10 @@ def run_job(job):
                '--batch-concurrent',
                '--models-ttl', '300',
                '--use-gpu']
+    elif mode == 'augment':
+        # 번역 보강 — 원본 없이 현재 번역본을 현 품질로 재구성(pre→aug 치환→finish).
+        # 오케스트레이터(augment_runner.sh)가 GPU pre + hymt2 finish 두 단계를 수행.
+        cmd = ['bash', os.path.join(ROOT, 'augment_runner.sh'), container, rel]
     elif mode in ('finish', 'refit'):
         # GPU 컨테이너와 무관한 독립 CPU 컨테이너(docker run) — GPU 워커 레인을 점유하지 않는다
         cmd = ['docker', 'run', '--rm', '--name', job.get('finish_cname') or 'mit-finish-adhoc',
@@ -1167,6 +1175,13 @@ def validate_job(rel, config, container, mode='full'):
         if not rel or not os.path.isdir(os.path.join(ROOT, 'tmp', 'gpu_pre', rel)):
             return 'gpu_pre 캐시가 없는 폴더입니다', 400
         return None, None
+    if mode == 'augment':
+        # 보강 — 현재 번역본 + 세그먼트 로그(일본어 원문 원천) 필요
+        if not rel or count_images(os.path.join(ROOT, 'translated', rel)) == 0:
+            return 'translated/에 번역본이 없습니다', 400
+        if not os.path.isfile(os.path.join(ROOT, 'tmp', 'hymt2-log', rel + '.jsonl')):
+            return '세그먼트 로그가 없습니다 (tmp/hymt2-log/<rel>.jsonl)', 400
+        return None, None
     if not rel or not os.path.isdir(os.path.join(DATA_DIR, rel)):
         return '폴더가 유효하지 않습니다', 400
     if count_images(os.path.join(DATA_DIR, rel)) == 0:
@@ -1255,7 +1270,8 @@ def _quality_scan_book(log_path):
     segments = blanks = euph = refusals = 0
     adult_keys = _adult_keys()
     for segs in pages.values():
-        for orig, tr in segs:
+        for seg in segs:
+            orig, tr = seg[0], seg[1]
             segments += 1
             tr = tr or ''
             if not tr.strip():
@@ -1320,6 +1336,28 @@ def api_batches_status(date):
     except OSError as e:
         print(f'[quality] 리포트 쓰기 실패: {e}', flush=True)
     return report, 200
+
+
+def api_augment(body):
+    """번역 보강 — 원본(일본어) 없이 현재 번역본을 현 품질로 재구성 (mode=augment).
+    tmp/hymt2-log의 일본어 원문을 원천으로: 번역본에 pre(검출·인페인트) →
+    영역 텍스트를 원문으로 치환 → hymt2 재번역·재렌더 → 동일 파일명 덮어쓰기.
+    body: {"folders": ["20261030/xxx", ...]}"""
+    queued, errors = [], []
+    for rel in body.get('folders') or []:
+        rel = rel.strip('/')
+        err, _ = validate_job(rel, DEFAULT_CONFIG, None, 'augment')
+        if err:
+            errors.append({'folder': rel, 'error': err})
+            continue
+        jid = make_job(rel, DEFAULT_CONFIG, None, False, True, mode='augment')
+        if jid:
+            queued.append({'id': jid, 'folder': rel})
+        else:
+            errors.append({'folder': rel, 'error': '이미 큐에 있음'})
+    if queued:
+        start_workers()
+    return {'queued': len(queued), 'jobs': queued, 'errors': errors}, 200
 
 
 def api_repair(body):
@@ -1587,6 +1625,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(res, code)
         elif u.path == '/api/gpu':
             res, code = api_gpu(self._body())
+            self._json(res, code)
+        elif u.path == '/api/augment':
+            res, code = api_augment(self._body())
             self._json(res, code)
         elif u.path == '/api/repair':
             res, code = api_repair(self._body())
