@@ -21,7 +21,8 @@ def _fake_resp(content: str):
 
 @pytest.fixture
 def make_translator(tmp_path, monkeypatch):
-    def _make(tm_lines=(), glossary_lines=(), big=True, glm=False):
+    def _make(tm_lines=(), glossary_lines=(), big=True, glm=False, vec=None,
+              emb_model='test-emb', build_model=None):
         tm = tmp_path / 'tm.tsv'
         tm.write_text('\n'.join(tm_lines) + '\n', encoding='utf-8')
         gl = tmp_path / 'glossary.tsv'
@@ -32,6 +33,26 @@ def make_translator(tmp_path, monkeypatch):
         monkeypatch.setenv('HYMT2_BIG_BASE', 'http://fake-big:1/v1' if big else '')
         monkeypatch.setenv('HYMT2_GL_FALLBACK', '1' if glm else '0')
         monkeypatch.setenv('HYMT2_CONCURRENCY', '4')
+        monkeypatch.setenv('HYMT2_EMB_BASE', 'http://fake-emb:1/v1')
+        monkeypatch.setenv('HYMT2_EMB_MODEL', emb_model)
+        if vec is not None:
+            import json as _json
+
+            import numpy as np
+            vd = tmp_path / 'vec'
+            vd.mkdir(exist_ok=True)
+            keys, trans, shares, vecs = zip(*vec)
+            emb = np.array(vecs, dtype=np.float32)
+            emb /= np.linalg.norm(emb, axis=1, keepdims=True)
+            np.save(vd / 'emb.npy', emb.astype(np.float16))
+            with open(vd / 'meta.tsv', 'w', encoding='utf-8') as f:
+                for k, t, s in zip(keys, trans, shares):
+                    f.write(f'{k}\t{t}\t9\t{s}\n')
+            with open(vd / 'BUILD.json', 'w', encoding='utf-8') as f:
+                _json.dump({'model': build_model or emb_model, 'dims': 3, 'entries': len(keys)}, f)
+            monkeypatch.setenv('HYMT2_VEC_DIR', str(vd))
+        else:
+            monkeypatch.setenv('HYMT2_VEC_DIR', '')
         from manga_translator.translators.hymt2 import HyMT2Translator
         return HyMT2Translator()
     return _make
@@ -158,6 +179,75 @@ def test_glossary_cap(make_translator):
     t = make_translator(glossary_lines=many)
     p = t._build_prompt('Korean', '本気' + ''.join(f'語{i}' for i in range(20)), '')
     assert p.count(' => ') <= t._GLOSSARY_MAX
+
+
+VEC_DB = [  # key, trans, share, vector (3차원 — 직교 기저로 유사도 설계)
+    ('あ', '아', 0.8, (1.0, 0.0, 0.0)),
+    ('い', '이', 0.6, (0.0, 1.0, 0.0)),
+    ('う', '우', 0.9, (0.0, 0.0, 1.0)),
+]
+
+
+def _fake_embed(vectors):
+    async def _embed(self, texts):
+        import numpy as np
+        emb = np.array(vectors, dtype=np.float32)
+        return emb / np.linalg.norm(emb, axis=1, keepdims=True)
+    return _embed
+
+
+@pytest.mark.asyncio
+async def test_vec_reuse_and_ref(make_translator, monkeypatch):
+    t = make_translator(vec=VEC_DB)
+    # 쿼리: 'ぁ'→e1과 동일(sim 1.0, share 0.8) 재사용 / 'ぃ'→e2 0.95(share 0.6) 참조 /
+    #       'ぇ'→저유사도 미참조. DB 키와 글자를 달리해 동일키 제외 로직 회피
+    monkeypatch.setattr(type(t), '_embed_batch', _fake_embed([(1, 0, 0), (0, 0.95, 0.312), (0.6, 0.6, 0.5)]))
+    prompts = []
+
+    async def fake_create(**kwargs):
+        prompts.append(kwargs['messages'][0]['content'])
+        return _fake_resp('결과')
+
+    t._client_small.chat.completions.create = AsyncMock(side_effect=fake_create)
+    out = await t._translate('auto', 'Korean', ['ぁ', 'ぃ', 'ぇ'])
+    assert out[0] == '아'                      # 벡터 재사용 — LLM 호출 없음
+    assert t._stat['vec_reuse'] == 1 and t._stat['vec_ref'] == 1
+    assert t._client_small.chat.completions.create.await_count == 2
+    assert any('い => 이' in p for p in prompts)   # 참조 주입 확인
+    assert not any('う => 우' in p for p in prompts)
+
+
+@pytest.mark.asyncio
+async def test_vec_skip_on_api_error(make_translator, monkeypatch):
+    t = make_translator(vec=VEC_DB)
+
+    async def boom(self, texts):
+        raise RuntimeError('embed down')
+
+    monkeypatch.setattr(type(t), '_embed_batch', boom)
+    t._client_small.chat.completions.create = AsyncMock(return_value=_fake_resp('좋아'))
+    out = await t._translate('auto', 'Korean', ['ぁ'])
+    assert out == ['좋아'] and t._stat['small'] == 1
+
+
+@pytest.mark.asyncio
+async def test_vec_model_mismatch_disables(make_translator):
+    # DB 빌드 모델(other-model) ≠ 요청 모델(test-emb) → 티어 비활성
+    t = make_translator(vec=VEC_DB, build_model='other-model')
+    assert t._vec is None
+    t._client_small.chat.completions.create = AsyncMock(return_value=_fake_resp('좋아'))
+    out = await t._translate('auto', 'Korean', ['ぁ'])
+    assert out == ['좋아'] and t._stat['small'] == 1
+
+
+@pytest.mark.asyncio
+async def test_vec_search_excludes_same_key(make_translator, monkeypatch):
+    # 쿼리 키가 DB 행 키와 동일하면(TM이 이미 캐치) 다음 근접행을 반환
+    t = make_translator(vec=VEC_DB)
+    monkeypatch.setattr(type(t), '_embed_batch', _fake_embed([(1, 0, 0)]))
+    hits = await t._vec_search(['あ'])
+    sim, row = hits[0]
+    assert t._vec['keys'][row] != 'あ' and sim < 0.5
 
 
 def test_gate_rules():

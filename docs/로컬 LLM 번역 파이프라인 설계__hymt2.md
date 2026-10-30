@@ -36,15 +36,18 @@
 ```
 세그먼트(페이지 단위 유입, finish.py Pass B)
  │
- ├─ Tier 0  TM 정확일치 — norm 키 조회 (configs/hymt2-tm.tsv, 코퍼스 share≥0.75·빈도≥3)
+ ├─ Tier 0   TM 정확일치 — norm 키 조회 (configs/hymt2-tm.tsv, 코퍼스 share≥0.75·빈도≥3)
  │           1차: 전체 norm 키 → 2차: 행끝 부호(?!.…~♥) 제거 키
  │           히트: LLM 호출 0회, GLM 다수역 품질 그대로 재사용
  │           측정(2026-10-30): 4,464 키 — 발생량 기준 10.0% / 유니크 원문 0.8% 커버
- ├─ Tier 1  Hy-MT2-1.8B-FP8 — 미스 세그먼트 전수를 동시성 16으로 1차 번역
+ ├─ Tier 0.5 벡터 근접검색 (§3.5) — 임베딩: df.flaglow.cc /embedder (bge-m3-mlx-8bit)
+ │           sim≥0.985 且 DB행 share≥0.75 → GLM 다수역 직접 재사용 (LLM 0회)
+ │           0.88≤sim<0.985 → 공식 용어집 형식으로 근접 쌍을 1.8B 프롬프트에 참조 주입
+ ├─ Tier 1   Hy-MT2-1.8B-FP8 — 미스 세그먼트 전수를 동시성 16으로 1차 번역
  │           (공식 프롬프트, 세그먼트별 독립 요청 — vLLM 연속 배칭이 처리량 담당)
- ├─ 게이트  로컬 규칙 검증: 빈 출력 / 한글 부재 / 원문 2배 과길이 / 원문 통과(미번역)
+ ├─ 게이트   로컬 규칙 검증: 빈 출력 / 한글 부재 / 원문 2배 과길이 / 원문 통과(미번역)
  │           실패 시 1.8B에 힌트 부여 1회 재시도
- └─ Tier 2  Hy-MT2-30B-A3B-FP8 — 잔여 실패 세그먼트만 2차 (소형 전수 선처리 후 일괄)
+ └─ Tier 2   Hy-MT2-30B-A3B-FP8 — 잔여 실패 세그먼트만 2차 (소형 전수 선처리 후 일괄)
              big 불가 시 → GLM 1회(설정된 경우) → 빈 칸
 ```
 
@@ -55,6 +58,29 @@
 - **용어집 주입**: 정적 사전(configs/hdtrans-userdict.txt 형식 TSV)에서 현재 세그먼트에
   부분문자열로 걸리는 키만 추려(상한 8개) 공식 용어집 프리픽스
   `Reference the following translations:` 로 주입.
+
+## 3.5 벡터 근접검색 (Tier 0.5)
+
+GPT 문서의 "유사일치는 자동 적용 금지, 참고로만" 원칙을 임베딩 유사도로 구현한 티어.
+
+- **임베딩**: `df.flaglow.cc /embedder/v1` (OpenAI 호환, 자가 서비스) — `bge-m3-mlx-8bit`
+  (1024차원, 다국어 CJK). 빌드와 쿼리가 같은 모델이어야 하므로 `BUILD.json`의 모델명과
+  `HYMT2_EMB_MODEL`이 다르면 티어가 자동 비활성된다.
+- **인덱스**: numpy 평탄 행렬(`configs/hymt2-vec/emb.npy`, fp16 저장·fp32 상주 정규화).
+  45K×1024 matvec < 1ms — faiss/pgvector 같은 외부 인프라 불필요(신규 의존 0,
+  RAM ~186MB/프로세스). 백만 규모로 늘어나는 시점에만 faiss 교체를 재검토.
+- **대상 코퍼스**: count≥2·share≥0.5 → 유니크 norm 키 ~45.5K (발생량의 20.5%).
+  share 0.5 미만 행은 GLM 스스로 불일관하는 원문 — 참조 재료로도 부적합해 제외.
+- **2단 임계값** (env `HYMT2_VEC_REUSE_SIM`/`HYMT2_VEC_REF_SIM`):
+  - 재사용 ≥0.985 + DB행 share≥0.75 — TM과 동일 품질 기준으로 직접 채택.
+    BGE-M3는 짧은 일본어 감탄사군이 0.91~0.98에 밀집하므로(2026-10-30 표본 보정,
+    최빈 200키 NN-sim p50 0.911/p95 0.979) 0.98 미만은 직접 채택하지 않는다.
+  - 참조 0.88~0.985 — 근접 원문→GLM 다수역 쌍을 Hy-MT2 공식 용어집 블록에 주입
+    (용어집과 병합, 상한 8쌍). 문맥 없는 1.8B에게 작품 규율을 주는 핵심 경로.
+- **운영**: 페이지 단위로 미스 세그먼트 전체를 1회 배치 임베딩(64개/요청, 병렬) —
+  API 죽으면 해당 티어만 건너뛰고 1.8B로 직행(경고 1행). 빌더·보정 절차는 §8.
+- **후보(v2)**: `df.flaglow.cc /reranker` (bge-reranker-v2-m3)로 참조 top-K 재순위 —
+  임계값 하위 후보들까지 안전하게 소비 가능.
 
 ## 4. 모델 전용 설정 (Hy-MT2 공식)
 
@@ -83,7 +109,10 @@
   `HYMT2_SMALL_MODEL`/`HYMT2_BIG_MODEL`(served-model-name),
   `HYMT2_CONCURRENCY`(16), `HYMT2_TIMEOUT`(30s), `HYMT2_TM`(경로, 빈 값=TM 끔),
   `HYMT2_GLOSSARY`(경로, 기본 hdtrans-userdict.txt, 빈 값=끔),
-  `HYMT2_GL_FALLBACK`(1=CUSTOM_OPENAI_* 환경으로 GLM 비상 폴백).
+  `HYMT2_GL_FALLBACK`(1=CUSTOM_OPENAI_* 환경으로 GLM 비상 폴백),
+  `HYMT2_EMB_BASE`(기본 `https://df.flaglow.cc/embedder/v1`)/`HYMT2_EMB_MODEL`
+  (bge-m3-mlx-8bit)/`HYMT2_VEC_DIR`(기본 configs/hymt2-vec, 없거나 빈 값=티어 끔),
+  `HYMT2_VEC_REUSE_SIM`(0.985)/`HYMT2_VEC_REF_SIM`(0.88).
 - 번역기 모듈은 `translators/` 디렉터리 마운트로 finish 컨테이너에 자동 반영
   (translate_gui.py FINISH_MOUNTS).
 
@@ -100,9 +129,13 @@
 - 회귀 평가셋: 코퍼스에서 빈도 계층화 샘플링 → 1.8B/30B 번역 vs GLM 다수역
   (정확일치율, 한글율, 길이비) — `.omc/research/hymt2-poc/` 에서 hdtrans-poc
   절차 계승. GLM 자기일관성(57.3%)이 상한 참고선.
-- 페이지 로그 1행 요약: `tm=N small=OK/FAIL big=OK glm=OK` — "% resolved by ≤1.8B" 운영 지표.
+- 페이지 로그 1행 요약: `tm / 벡터재사용 / 1.8B(참조주입·재시도·실패) / 30B / GLM /
+  빈칸 | ≤1.8B 해결률` — "% resolved by ≤1.8B" 운영 지표.
 - TM 갱신: 코퍼스 재마이닝(`.omc/research/hdtrans-poc/extract_segments.py` +
   `build_tm.py`) 후 tsv 재생성 — 파일 헤더에 절차 기록.
+- 벡터 DB 갱신: 같은 코퍼스로 `build_vec.py --full` (임베딩 ~45K 키, 체크포인트
+  재개 지원) → `configs/hymt2-vec/{emb.npy, meta.tsv, BUILD.json}` 재생성.
+  git 제외(.gitignore) — configs/ 마운트로 컨테이너에 자동 반영.
 
 ## 9. v2 후보 (v1 범위 밖)
 

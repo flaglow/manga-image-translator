@@ -3,6 +3,8 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
 from .common import CommonTranslator
 
 try:
@@ -15,11 +17,13 @@ class HyMT2Translator(CommonTranslator):
     """Hy-MT2 로컬 LLM 번역기 (vLLM OpenAI 호환 서버 2단).
 
     티어 구조 (docs/로컬 LLM 번역 파이프라인 설계__hymt2.md 참조):
-      Tier 0  TM 정확일치 (configs/hymt2-tm.tsv — 프로덕션 GLM 코퍼스 다수역)
-      Tier 1  Hy-MT2-1.8B-FP8 전수 1차 (세그먼트별 독립 요청, 동시성 세마포어)
-      게이트  빈 출력/한글 부재/원문 2배 과길이/원문 통과 → 힌트 1회 재시도
-      Tier 2  Hy-MT2-30B-A3B-FP8 실패분 일괄 (big 서버 설정 시)
-              → (옵션) GLM 비상 폴백 → 빈 칸
+      Tier 0   TM 정확일치 (configs/hymt2-tm.tsv — 프로덕션 GLM 코퍼스 다수역)
+      Tier 0.5 벡터 근접검색 (configs/hymt2-vec/ — df.flaglow.cc 임베딩 + numpy 평탄 인덱스)
+               고유사도·고품질행은 재사용, 그 아래는 공식 용어집 형식으로 참조 주입
+      Tier 1   Hy-MT2-1.8B-FP8 전수 1차 (세그먼트별 독립 요청, 동시성 세마포어)
+      게이트   빈 출력/한글 부재/원문 2배 과길이/원문 통과 → 힌트 1회 재시도
+      Tier 2   Hy-MT2-30B-A3B-FP8 실패분 일괄 (big 서버 설정 시)
+               → (옵션) GLM 비상 폴백 → 빈 칸
 
     목표 지표 "% resolved by ≤1.8B" 를 페이지 요약 로그로 상시 추적한다.
     프롬프트/샘플링은 Hy-MT2 공식값 고정(모델 전용 설정 우선):
@@ -71,6 +75,17 @@ class HyMT2Translator(CommonTranslator):
         self._glossary = self._load_glossary(os.environ.get(
             'HYMT2_GLOSSARY', 'configs/hdtrans-userdict.txt'))
 
+        # 벡터 근접검색 — DB(configs/hymt2-vec/)가 있고 임베딩 API가 설정돼 있을 때만 동작
+        self._emb_base = os.environ.get('HYMT2_EMB_BASE', 'https://df.flaglow.cc/embedder/v1')
+        self._emb_model = os.environ.get('HYMT2_EMB_MODEL', 'bge-m3-mlx-8bit')
+        self._vec_reuse_sim = float(os.environ.get('HYMT2_VEC_REUSE_SIM', '0.985'))
+        self._vec_ref_sim = float(os.environ.get('HYMT2_VEC_REF_SIM', '0.88'))
+        self._vec = self._load_vec(os.environ.get('HYMT2_VEC_DIR', 'configs/hymt2-vec'))
+        self._client_emb = None
+        if self._vec is not None and self._emb_base:
+            self._client_emb = openai.AsyncOpenAI(
+                api_key='local', base_url=self._emb_base, timeout=30)
+
         # 페이지 요약 로그용 카운터 (translate() 호출당 리셋)
         self._stat = {}
 
@@ -103,8 +118,9 @@ class HyMT2Translator(CommonTranslator):
         tm = {}
         with open(path, encoding='utf-8') as f:
             for line in f:
+                # 주석(# 헤더)은 탭이 없다 — '#'로 시작하는 키(해시태그 대사)는 보존
                 line = line.rstrip('\n')
-                if not line or line.startswith('#') or '\t' not in line:
+                if not line or '\t' not in line:
                     continue
                 cols = line.split('\t')
                 if len(cols) < 2:
@@ -137,13 +153,85 @@ class HyMT2Translator(CommonTranslator):
         with open(path, encoding='utf-8') as f:
             for line in f:
                 line = line.rstrip('\n')
-                if not line or line.startswith('#') or '\t' not in line:
+                if not line or '\t' not in line:  # 주석 헤더 = 탭 없는 줄
                     continue
                 k, v = line.split('\t', 1)
                 if k and v:
                     entries.append((k.strip(), v.strip()))
         self.logger.info(f'용어집 로드: {len(entries)} 엔트리 ({path})')
         return entries
+
+    # ── 벡터 근접검색 (Tier 0.5) ────────────────────────────────
+
+    def _load_vec(self, vec_dir: str):
+        """configs/hymt2-vec/{emb.npy, meta.tsv, BUILD.json} — build_vec.py 산출물.
+
+        numpy 평탄 인덱스: 45K×1024 matvec 가 <1ms (faiss 불필요 — 신규 네이티브
+        의존성 0, 컨테이너에 numpy 이미 내장). emb.npy(fp16)를 fp32로 정규화해 상주.
+        BUILD.json 의 모델명이 HYMT2_EMB_MODEL 과 다르면 쿼리 벡터 공간이 어긋나므로
+        티어를 비활성화한다. 디렉터리가 없어도 None (자동 비활성).
+        """
+        import json
+        emb_path = os.path.join(vec_dir, 'emb.npy')
+        meta_path = os.path.join(vec_dir, 'meta.tsv')
+        build_path = os.path.join(vec_dir, 'BUILD.json')
+        if not (os.path.isfile(emb_path) and os.path.isfile(meta_path)):
+            return None
+        try:
+            build = json.load(open(build_path, encoding='utf-8'))
+        except Exception:
+            build = {}
+        if build.get('model') and build.get('model') != self._emb_model:
+            self.logger.warning(
+                f"벡터 DB 모델 불일치 (DB={build.get('model')} ≠ 요청={self._emb_model}) "
+                '— 벡터 티어 비활성. HYMT2_EMB_MODEL 을 DB 빌드 모델로 맞출 것')
+            return None
+        emb = np.load(emb_path).astype(np.float32)
+        norms = np.linalg.norm(emb, axis=1, keepdims=True)
+        emb = emb / (norms + 1e-9)
+        keys, trans, shares = [], [], []
+        with open(meta_path, encoding='utf-8') as f:
+            for line in f:
+                if '\t' not in line:  # 주석 헤더 = 탭 없는 줄 ('#' 키 보존)
+                    continue
+                cols = line.rstrip('\n').split('\t')
+                keys.append(cols[0])
+                trans.append(cols[1])
+                shares.append(float(cols[3]) if len(cols) > 3 else 0.0)
+        if len(keys) != emb.shape[0]:
+            self.logger.warning(
+                f'벡터 DB 불일치 — meta {len(keys)}행 vs emb {emb.shape[0]}행, 티어 비활성')
+            return None
+        self.logger.info(f'벡터 TM 로드: {emb.shape[0]}행 × {emb.shape[1]}차원 ({vec_dir})')
+        return {'emb': emb, 'keys': keys, 'trans': trans, 'shares': shares}
+
+    async def _embed_batch(self, texts: List[str]) -> np.ndarray:
+        """임베딩 API(df.flaglow.cc /embedder/v1, OpenAI 호환)로 정규화 벡터 반환."""
+        chunks = [texts[i:i + 64] for i in range(0, len(texts), 64)]
+
+        async def one(chunk):
+            r = await self._client_emb.embeddings.create(model=self._emb_model, input=chunk)
+            data = sorted(r.data, key=lambda d: d.index)
+            return [d.embedding for d in data]
+
+        vectors = [v for part in await asyncio.gather(*[one(c) for c in chunks]) for v in part]
+        emb = np.array(vectors, dtype=np.float32)
+        return emb / (np.linalg.norm(emb, axis=1, keepdims=True) + 1e-9)
+
+    async def _vec_search(self, keys: List[str]) -> List[Optional[Tuple[float, int]]]:
+        """각 키의 최근접 행 — 동일 키(=TM이 이미 캐치)는 제외하고 (sim, row) 반환."""
+        q = await self._embed_batch(keys)
+        sims = q @ self._vec['emb'].T
+        out = []
+        for i, key in enumerate(keys):
+            row_sims = sims[i]
+            row = int(np.argmax(row_sims))
+            if self._vec['keys'][row] == key:
+                row_sims = row_sims.copy()
+                row_sims[row] = -1.0
+                row = int(np.argmax(row_sims))
+            out.append((float(row_sims[row]), row))
+        return out
 
     # ── 게이트 ──────────────────────────────────────────────────
 
@@ -172,11 +260,18 @@ class HyMT2Translator(CommonTranslator):
 
     # ── 프롬프트 (Hy-MT2 공식형) ─────────────────────────────────
 
-    def _build_prompt(self, to_lang: str, query: str, hint: str = '') -> str:
+    def _build_prompt(self, to_lang: str, query: str, hint: str = '',
+                      refs: Optional[List[Tuple[str, str]]] = None) -> str:
+        """공식 프롬프트 + 용어집/벡터참조 병합 (단일 Reference 블록, 상한 8쌍)."""
         parts = []
-        hits = [kv for kv in self._glossary if kv[0] in query][:self._GLOSSARY_MAX]
-        if hits:
-            ref = '\n'.join(f'{k} => {v}' for k, v in hits)
+        pairs = [kv for kv in self._glossary if kv[0] in query][:self._GLOSSARY_MAX]
+        for r in (refs or []):
+            if len(pairs) >= self._GLOSSARY_MAX:
+                break
+            if r not in pairs:
+                pairs.append(r)
+        if pairs:
+            ref = '\n'.join(f'{k} => {v}' for k, v in pairs)
             parts.append(f'Reference the following translations:\n{ref}')
         parts.append(
             f'Translate the following text into {to_lang}, note that you need only output '
@@ -187,13 +282,14 @@ class HyMT2Translator(CommonTranslator):
         return '\n\n'.join(parts)
 
     async def _request(self, client, model: str, to_lang: str, query: str,
-                       hint: str, top_p: float, extra: dict) -> Optional[str]:
+                       hint: str, top_p: float, extra: dict,
+                       refs: Optional[List[Tuple[str, str]]] = None) -> Optional[str]:
         """1회 요청 — 예외/빈응답은 None (호출자가 에스컬레이션)."""
         for attempt in range(self._CONNECT_ATTEMPTS):
             try:
                 r = await client.chat.completions.create(
                     model=model,
-                    messages=[{'role': 'user', 'content': self._build_prompt(to_lang, query, hint)}],
+                    messages=[{'role': 'user', 'content': self._build_prompt(to_lang, query, hint, refs)}],
                     temperature=0.7,
                     top_p=top_p,
                     max_tokens=512,
@@ -210,11 +306,12 @@ class HyMT2Translator(CommonTranslator):
                     return None
                 await asyncio.sleep(0.5)
 
-    async def _small(self, to_lang: str, query: str) -> Optional[str]:
+    async def _small(self, to_lang: str, query: str,
+                     refs: Optional[List[Tuple[str, str]]] = None) -> Optional[str]:
         extra = {'top_k': 20, 'repetition_penalty': 1.05}
         async with self._sem:
             trans = await self._request(
-                self._client_small, self._small_model, to_lang, query, '', 0.6, extra)
+                self._client_small, self._small_model, to_lang, query, '', 0.6, extra, refs)
         if trans is not None and self._gate_ok(query, trans):
             return trans
         # 게이트 실패 — 힌트 1회 재시도
@@ -222,7 +319,7 @@ class HyMT2Translator(CommonTranslator):
                 else self._HINT_LENGTH)
         async with self._sem:
             retry = await self._request(
-                self._client_small, self._small_model, to_lang, query, hint, 0.6, extra)
+                self._client_small, self._small_model, to_lang, query, hint, 0.6, extra, refs)
         if retry is not None and self._gate_ok(query, retry):
             self._stat['small_retry_ok'] = self._stat.get('small_retry_ok', 0) + 1
             return retry
@@ -233,11 +330,12 @@ class HyMT2Translator(CommonTranslator):
         self._stat['small_fail'] = self._stat.get('small_fail', 0) + 1
         return None
 
-    async def _big(self, to_lang: str, query: str) -> Optional[str]:
+    async def _big(self, to_lang: str, query: str,
+                   refs: Optional[List[Tuple[str, str]]] = None) -> Optional[str]:
         extra = {'repetition_penalty': 1.0}
         async with self._sem:
             trans = await self._request(
-                self._client_big, self._big_model, to_lang, query, '', 1.0, extra)
+                self._client_big, self._big_model, to_lang, query, '', 1.0, extra, refs)
         if trans is not None and self._gate_ok(query, trans):
             return trans
         if trans and self._has_hangul(trans):  # 과길이만 문제면 차선 허용
@@ -264,8 +362,8 @@ class HyMT2Translator(CommonTranslator):
     # ── 메인 ────────────────────────────────────────────────────
 
     async def _translate(self, from_lang: str, to_lang: str, queries: List[str]) -> List[str]:
-        self._stat = {'tm': 0, 'small': 0, 'big': 0, 'glm': 0, 'empty': 0,
-                      'small_fail': 0, 'small_retry_ok': 0}
+        self._stat = {'tm': 0, 'vec_reuse': 0, 'vec_ref': 0, 'small': 0, 'big': 0, 'glm': 0,
+                      'empty': 0, 'small_fail': 0, 'small_retry_ok': 0}
         results: List[Optional[str]] = [None] * len(queries)
 
         # Tier 0 — TM 정확일치 (LLM 호출 0)
@@ -278,10 +376,28 @@ class HyMT2Translator(CommonTranslator):
             else:
                 pending.append(i)
 
+        # Tier 0.5 — 벡터 근접검색: 고유사도·고품질행 재사용, 그 아래는 참조 주입
+        vec_refs: Dict[int, List[Tuple[str, str]]] = {}
+        if pending and self._vec is not None and self._client_emb is not None:
+            try:
+                keys = [self._norm(queries[i]) for i in pending]
+                for i, (sim, row) in zip(pending, await self._vec_search(keys)):
+                    if sim < self._vec_ref_sim or not self._vec['trans'][row]:
+                        continue
+                    if sim >= self._vec_reuse_sim and self._vec['shares'][row] >= 0.75:
+                        results[i] = self._vec['trans'][row]
+                        self._stat['vec_reuse'] += 1
+                    else:
+                        vec_refs[i] = [(self._vec['keys'][row], self._vec['trans'][row])]
+                        self._stat['vec_ref'] += 1
+                pending = [i for i in pending if results[i] is None]
+            except Exception as e:
+                self.logger.warning(f'벡터 티어 건너뜀 (API?): {e}')
+
         # Tier 1 — 1.8B 전수 병렬 (소형 선처리: 대형은 이 웨이브가 끝난 뒤)
         if pending:
             small_results = await asyncio.gather(
-                *(self._small(to_lang, queries[i]) for i in pending))
+                *(self._small(to_lang, queries[i], vec_refs.get(i)) for i in pending))
             for i, trans in zip(pending, small_results):
                 if trans is not None:
                     results[i] = trans
@@ -290,7 +406,8 @@ class HyMT2Translator(CommonTranslator):
 
         # Tier 2 — 30B 실패분 일괄
         if pending and self._escalate_big:
-            big_results = await asyncio.gather(*(self._big(to_lang, queries[i]) for i in pending))
+            big_results = await asyncio.gather(
+                *(self._big(to_lang, queries[i], vec_refs.get(i)) for i in pending))
             for i, trans in zip(pending, big_results):
                 if trans is not None:
                     results[i] = trans
@@ -312,10 +429,11 @@ class HyMT2Translator(CommonTranslator):
             self._stat['empty'] += 1
 
         n = len(queries)
-        resolved_small = self._stat['tm'] + self._stat['small']
+        resolved_small = self._stat['tm'] + self._stat['vec_reuse'] + self._stat['small']
         self.logger.info(
-            f'HyMT2 요약: 총 {n} — TM {self._stat["tm"]}, 1.8B {self._stat["small"]} '
-            f'(재시도 회수 {self._stat["small_retry_ok"]}, 실패 {self._stat["small_fail"]}), '
+            f'HyMT2 요약: 총 {n} — TM {self._stat["tm"]}, 벡터재사용 {self._stat["vec_reuse"]}, '
+            f'1.8B {self._stat["small"]} (참조주입 {self._stat["vec_ref"]}, '
+            f'재시도 회수 {self._stat["small_retry_ok"]}, 실패 {self._stat["small_fail"]}), '
             f'30B {self._stat["big"]}, GLM {self._stat["glm"]}, 빈칸 {self._stat["empty"]} '
             f'| ≤1.8B 해결률 {resolved_small * 100 // max(n, 1)}%')
         return [r or '' for r in results]
