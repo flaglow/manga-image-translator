@@ -32,7 +32,9 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
     shm_size: 2g
-    restart: unless-stopped
+    # 온디맨드(사용자 방침) — 재시작 정책 끔: GUI 수요 판정이 유일한 기동 경로.
+    # docker 데몬 재시작·정책 재활성화로 무단 부활하는 경로 차단.
+    restart: "no"
     deploy:
       resources:
         reservations:
