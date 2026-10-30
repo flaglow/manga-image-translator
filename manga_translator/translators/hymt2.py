@@ -17,7 +17,7 @@ except ImportError:
 class HyMT2Translator(CommonTranslator):
     """Hy-MT2 로컬 LLM 번역기 (vLLM OpenAI 호환 서버 2단).
 
-    티어 구조 (docs/로컬 LLM 번역 파이프라인 설계__hymt2.md 참조):
+    티어 구조 (docs/guides/hymt2-pipeline-design.md 참조):
       Tier 0   TM 정확일치 (configs/hymt2-tm.tsv — 프로덕션 GLM 코퍼스 다수역)
       Tier 0.5 벡터 근접검색 (configs/hymt2-vec/ — df.flaglow.cc 임베딩 + numpy 평탄 인덱스)
                고유사도·고품질행은 재사용, 그 아래는 공식 용어집 형식으로 참조 주입

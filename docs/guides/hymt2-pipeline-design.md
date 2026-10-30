@@ -1,6 +1,11 @@
+---
+status: active
+date: 2026-10-30
+---
+
 # 로컬 LLM 번역 파이프라인 설계 — Hy-MT2 (vLLM)
 
-`docs/idea/번역 파이프라인 조사__gpt 대화로그.md`의 일반론을 본 파이프라인 실정에 맞게
+`docs/reference/gpt-pipeline-research-log.md`의 일반론을 본 파이프라인 실정에 맞게
 재구성한 실행 설계. 2026-10-30 기준.
 
 ## 1. 일반론 → 우리 상황 재구성

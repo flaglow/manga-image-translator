@@ -21,7 +21,7 @@ Last Updated: 2025/05/10
 - **배치 대시보드** — `./startup.sh`로 기동, `http://127.0.0.1:8787` (`translate_gui.py`). 폴더 탐색 → 큐 추가 → 진행률/실시간 로그/취소. 모든 기능은 HTTP API로도 호출 가능
 - **2-패스 파이프라인** — Pass A(`mode=pre`, `configs/pass_a.toml`): GPU로 검출·OCR·인페인팅만 수행해 `tmp/gpu_pre/`에 페이지 캐시. Pass B(`mode=finish`, `manga_translator/mode/finish.py`): 독립 CPU 컨테이너에서 LLM 번역·렌더링만 수행. `mode=full`은 기존 일괄 파이프라인. pre 완료 시 finish 자동 체이닝
 - **GPU 컨테이너** — `demo/doc/docker-compose-web-with-gpu.yml` (gpu1~5 정의). 대시보드에서 목표 개수 조절(1~5, 기본 3)·기동·반납, 무작업 5분 지속 시 자동 GPU 반납 후 작업 발생 시 목표 개수만큼 재기동
-- **번역 LLM (선택형)** — 3종: ① `gpt-kor.toml` — `custom_openai` (z.ai GLM 계열, `.env`의 `OPENAI_COMPATIBLE_*` 키). 번역 거부 응답 감지·재시도, 번역문 길이 하드캡, 429 적응 동시성 내장. ② `hd-kor.toml` — hdTrans 규칙 기반 오프라인 일한. ③ `hymt2-kor.toml` — **Hy-MT2 로컬 LLM**(vLLM, 비용 0): TM 정확일치→벡터 근접→1.8B 전수→게이트→7B 수리. 로컬 LLM은 한 번에 한 모델만(배타 모드, `./hymt2_repair.sh` 스왑 수리). 상세: `docs/로컬 LLM 번역 파이프라인 설계__hymt2.md`
+- **번역 LLM (선택형)** — 3종: ① `gpt-kor.toml` — `custom_openai` (z.ai GLM 계열, `.env`의 `OPENAI_COMPATIBLE_*` 키). 번역 거부 응답 감지·재시도, 번역문 길이 하드캡, 429 적응 동시성 내장. ② `hd-kor.toml` — hdTrans 규칙 기반 오프라인 일한. ③ `hymt2-kor.toml` — **Hy-MT2 로컬 LLM**(vLLM, 비용 0): TM 정확일치→벡터 근접→1.8B 전수→게이트→7B 수리. 로컬 LLM은 한 번에 한 모델만(배타 모드, `./hymt2_repair.sh` 스왑 수리). 상세: `docs/guides/hymt2-pipeline-design.md`
 - **한국어 폰트** — `fonts/SUIT-*.ttf`(렌더 기본), `fonts/BM*.ttf`
 
 ### 운영 규칙

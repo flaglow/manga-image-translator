@@ -84,7 +84,7 @@ GPU 전처리 없음(finish-only) → 414권 전량도 시간 단위. 결과는 
   스플 적립 → `./hymt2_repair.sh` 로 스왑 수리(소형 정지→7B→수리→소형 복구) → 캐시 재사용.
   finish 컨테이너는 GUI가 `hymt2` 네트워크에 자동 attach (vLLM 컨테이너명 DNS 통신).
   재정의: `HYMT2_SMALL_BASE`/`HYMT2_BIG_BASE`/`HYMT2_CONCURRENCY`/`HYMT2_REF_F1_GATE` 등 —
-  `manga_translator/translators/hymt2.py` 헤더 참조. 설계·실측: `docs/로컬 LLM 번역 파이프라인 설계__hymt2.md`
+  `manga_translator/translators/hymt2.py` 헤더 참조. 설계·실측: `docs/guides/hymt2-pipeline-design.md`
 
 
 ## 제어
