@@ -18,6 +18,12 @@ docker exec "$C" python -m manga_translator local \
     -f png --preprocess-dump --batch-size 12 --batch-concurrent \
     --models-ttl 300 --use-gpu
 
+# vLLM 온디맨드 — 스케일러 기동 대기 (최대 5분)
+for i in $(seq 1 100); do
+    curl -sf -m 3 http://localhost:8011/health >/dev/null 2>&1 && break
+    sleep 3
+done
+
 cmd=(docker run --rm --network hymt2 --user 1000:1000
      --entrypoint python -v "$PWD:/app" -w /app
      -e HYMT2_SMALL_BASE=http://mit_hymt2_small:8011/v1

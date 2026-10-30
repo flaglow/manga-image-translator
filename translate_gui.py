@@ -111,7 +111,10 @@ def _docker_network_exists(name):
 
 
 # Hy-MT2 vLLM 서버 네트워크 — 존재할 때만 finish 컨테이너를 attach (미기동이면 기본 브리지)
-FINISH_NETWORK = 'hymt2' if _docker_network_exists('hymt2') else ''
+# hymt2 네트워크는 상시 존재(비어있는 브리지는 공짜) — 컨테이너만 온디맨드.
+# LLM 작업(finish/refit/augment/full) 발생 시 스케일러가 vLLM을 기동한다.
+subprocess.run(['docker', 'network', 'create', 'hymt2'], capture_output=True, timeout=30)
+FINISH_NETWORK = 'hymt2'
 
 # finish 레인(번역·렌더 컨테이너) 동시성 — 과거 기본 3은 GLM API 레이트리밋(429) 대응.
 # 로컬 LLM(vLLM) 감지 시 제한이 없으므로 기본 10 (CPU 24코어 기준 여유; 렌더 CPU 병렬).
@@ -495,6 +498,17 @@ def finish_worker_loop():
                     if best_key is None or key < best_key:
                         job, best_key = j, key
             if job:
+                # vLLM 온디맨드 — hymt2 계열 작업만. 스케일러 기동을 헬스 대기 후 진행
+                for _ in range(100) if 'hymt2' in str(job.get('config', '')) else [0]:
+                    if _vllm_health_ok():
+                        break
+                    time.sleep(3)
+                else:
+                    job['status'] = 'error'
+                    job['error'] = 'vLLM(hymt2-small) 준비 실패 — 온디맨드 기동 확인'
+                    job['finished_at'] = time.time()
+                    job = None
+            if job:
                 job['container'] = 'finish'  # 표시용 — docker exec 대상 아님
                 job['status'] = 'running'
                 job['started_at'] = time.time()
@@ -674,26 +688,52 @@ def _gpu_scale_once(idle_since):
     return idle_since
 
 
-def _vllm_selfheal():
-    """vLLM 소형(hymt2-small) 자가치유 — 상시 서비스가 외부 요인으로 정지되면 재기동.
-    (2026-10-30: 원인 미상의 정지가 반복 발견 — 번역 레인이 빈 출력/스필로 미회복되는
-    사고 방지. 컨테이너가 없으면 compose로 생성까지 시도.)"""
-    if not FINISH_NETWORK:
-        return
+def _vllm_health_ok():
+    """vLLM 소형 헬스 (8011)."""
     try:
         import urllib.request
         with urllib.request.urlopen('http://localhost:8011/health', timeout=3) as r:
-            if r.status == 200:
-                return
+            return r.status == 200
     except Exception:
-        pass
+        return False
+
+
+def _vllm_start():
     r = subprocess.run(['docker', 'start', 'mit_hymt2_small'],
-                       capture_output=True, timeout=30)
+                       capture_output=True, timeout=60)
     if r.returncode != 0:
         subprocess.run(['docker', 'compose', '-f',
                         os.path.join(ROOT, 'demo/doc/docker-compose-hymt2.yml'),
-                        'up', '-d', 'hymt2-small'], capture_output=True, timeout=120)
-    print('[vLLM] hymt2-small 사망 감지 — 재기동', flush=True)
+                        'up', '-d', 'hymt2-small'], capture_output=True, timeout=300)
+
+
+VLLM_STATE = {'idle_ticks': 0}
+
+
+def _vllm_demand():
+    """vLLM 소형 온디맨드 — LLM·큐 작업이 있으면 기동, 유휴(10분)면 정지.
+    (2026-10-30 사용자 방침: 상시 상주 아님. 시작 ~1분 소요 — finish 워커가
+    헬스를 기다린 뒤 컨테이너를 띄운다.)"""
+    try:
+        with LOCK:
+            needed = any(j and j.get('status') in ('queued', 'running')
+                         for j in JOBS.values())
+        up = _vllm_health_ok()
+        if needed and not up:
+            _vllm_start()
+            print('[vLLM] 작업 수요 — hymt2-small 기동', flush=True)
+            VLLM_STATE['idle_ticks'] = 0
+        elif not needed and up:
+            VLLM_STATE['idle_ticks'] += 1
+            if VLLM_STATE['idle_ticks'] >= 20:  # 20틱(≈7분) 무수요
+                subprocess.run(['docker', 'stop', 'mit_hymt2_small'],
+                               capture_output=True, timeout=60)
+                print('[vLLM] 무수요 — hymt2-small 정지 (온디맨드)', flush=True)
+                VLLM_STATE['idle_ticks'] = 0
+        else:
+            VLLM_STATE['idle_ticks'] = 0
+    except Exception as e:
+        print(f'[vLLM] 수요 판정 오류: {e}', flush=True)
 
 
 def gpu_scaler_loop():
@@ -705,7 +745,7 @@ def gpu_scaler_loop():
     while True:
         try:
             idle_since = _gpu_scale_once(idle_since)
-            _vllm_selfheal()
+            _vllm_demand()
         except Exception as e:
             print(f'[GPU] 스케일러 오류: {e}', flush=True)
         time.sleep(GPU_SCALER_INTERVAL)
