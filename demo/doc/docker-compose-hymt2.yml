@@ -52,12 +52,13 @@ services:
     container_name: mit_hymt2_big
     profiles: ["escalation"]
     networks: [hymt2]
+    # 7B-FP8(≈7.5GB)는 dense — 30B-A3B(MoE)가 WSL2 UVA 환경에서 MoE 워크스페이스
+    # 할당 시 CUDA illegal access로 기동 불가였던 것과 달리 CPU 오프로드 없이 상주.
     command: >
-      --model tencent/Hy-MT2-30B-A3B-FP8
-      --served-model-name hymt2-30b
-      --cpu-offload-gb 18
+      --model tencent/Hy-MT2-7B-FP8
+      --served-model-name hymt2-7b
       --max-model-len 4096
-      --gpu-memory-utilization 0.55
+      --gpu-memory-utilization 0.45
       --enforce-eager
       --port 8012
     # environment:

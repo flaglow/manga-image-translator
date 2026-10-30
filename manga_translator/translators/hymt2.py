@@ -23,12 +23,12 @@ class HyMT2Translator(CommonTranslator):
                고유사도·고품질행은 재사용, 그 아래는 공식 용어집 형식으로 참조 주입
       Tier 1   Hy-MT2-1.8B-FP8 전수 1차 (세그먼트별 독립 요청, 동시성 세마포어)
       게이트   빈 출력/한글 부재/원문 2배 과길이/원문 통과 → 힌트 1회 재시도
-      Tier 2   Hy-MT2-30B-A3B-FP8 실패분 일괄 (big 서버 설정 시)
+      Tier 2   Hy-MT2-7B-FP8 실패분 일괄 (big 서버 설정 시)
                → (옵션) GLM 비상 폴백 → 빈 칸
 
     목표 지표 "% resolved by ≤1.8B" 를 페이지 요약 로그로 상시 추적한다.
     프롬프트/샘플링은 Hy-MT2 공식값 고정(모델 전용 설정 우선):
-      1.8B t0.7/p0.6/k20/rep1.05 · 30B t0.7/p1.0/rep1.0 · 시스템 프롬프트 없음.
+      1.8B·7B 동일 t0.7/p0.6/k20/rep1.05 · 시스템 프롬프트 없음.
 
     배포: demo/doc/docker-compose-hymt2.yml (포트 8011/8012, big은 profile escalation).
     선택: configs/hymt2-kor.toml. 재정의: HYMT2_* 환경변수.
@@ -36,7 +36,7 @@ class HyMT2Translator(CommonTranslator):
     _LANGUAGE_CODE_MAP = {'JPN': 'Japanese', 'ENG': 'English', 'KOR': 'Korean'}
 
     _TIMEOUT = 30          # 1.8B 요청 타임아웃(초) — HYMT2_TIMEOUT
-    _BIG_TIMEOUT = 90      # 30B 요청 타임아웃(초) — HYMT2_BIG_TIMEOUT
+    _BIG_TIMEOUT = 90      # 7B(대형) 요청 타임아웃(초) — HYMT2_BIG_TIMEOUT
     _CONNECT_ATTEMPTS = 2  # 서버 불응 시 재시도
     _LENGTH_HARD_CAP = 2   # 원문 대비 과길이 배수 (custom_openai 계승)
     _GLOSSARY_MAX = 8      # 세그먼트당 주입 용어 상한
@@ -56,7 +56,7 @@ class HyMT2Translator(CommonTranslator):
         self._small_base = os.environ.get('HYMT2_SMALL_BASE', 'http://localhost:8011/v1')
         self._big_base = os.environ.get('HYMT2_BIG_BASE', 'http://localhost:8012/v1')
         self._small_model = os.environ.get('HYMT2_SMALL_MODEL', 'hymt2-1.8b')
-        self._big_model = os.environ.get('HYMT2_BIG_MODEL', 'hymt2-30b')
+        self._big_model = os.environ.get('HYMT2_BIG_MODEL', 'hymt2-7b')
         # 배타 모드(기본): 로컬 LLM은 한 번에 한 모델만 — 대형 즉시 상향 대신 스플 파일에
         # 적립하고 수리 패스(hymt2_repair.sh)가 [소형 정지→대형→스필 처리→소형 재기동]으로
         # 스왑 실행, 결과는 캐시에 남아 이후 번역에서 우선 재사용된다.
@@ -394,10 +394,10 @@ class HyMT2Translator(CommonTranslator):
 
     async def _big(self, to_lang: str, query: str,
                    refs: Optional[List[Tuple[str, str]]] = None) -> Optional[str]:
-        extra = {'repetition_penalty': 1.0}
+        extra = {'top_k': 20, 'repetition_penalty': 1.05}  # 7B 공식값 = 1.8B와 동일
         async with self._sem:
             trans = await self._request(
-                self._client_big, self._big_model, to_lang, query, '', 1.0, extra, refs)
+                self._client_big, self._big_model, to_lang, query, '', 0.6, extra, refs)
         if trans is not None and self._gate_ok(query, trans):
             return trans
         if trans and self._has_hangul(trans):  # 과길이만 문제면 차선 허용
@@ -481,7 +481,7 @@ class HyMT2Translator(CommonTranslator):
                     self._stat['small'] += 1
             pending = [i for i in pending if results[i] is None]
 
-        # Tier 2 — 30B 실패분 일괄. 배타 모드(기본)에서는 즉시 상향하지 않고
+        # Tier 2 — 7B 실패분 일괄. 배타 모드(기본)에서는 즉시 상향하지 않고
         # 스플에 적립 — 수리 패스(hymt2_repair.sh)가 소형과 맞바꿔 처리한다.
         if pending and self._escalate_big and not self._exclusive:
             big_results = await asyncio.gather(
@@ -524,7 +524,7 @@ class HyMT2Translator(CommonTranslator):
             f'HyMT2 요약: 총 {n} — TM {self._stat["tm"]}, 벡터재사용 {self._stat["vec_reuse"]}, '
             f'수리캐시 {self._stat["cache"]}, 1.8B {self._stat["small"]} '
             f'(참조주입 {self._stat["vec_ref"]}, 재시도 회수 {self._stat["small_retry_ok"]}, '
-            f'실패 {self._stat["small_fail"]}), 30B {self._stat["big"]}, GLM {self._stat["glm"]}, '
+            f'실패 {self._stat["small_fail"]}), 7B {self._stat["big"]}, GLM {self._stat["glm"]}, '
             f'스필 {self._stat["spill"]}, 빈칸 {self._stat["empty"]} '
             f'| ≤1.8B 해결률 {resolved_small * 100 // max(n, 1)}%')
         return [r or '' for r in results]
