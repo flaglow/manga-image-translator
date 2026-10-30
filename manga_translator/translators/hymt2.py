@@ -88,8 +88,15 @@ class HyMT2Translator(CommonTranslator):
         # 벡터 근접검색 — DB(configs/hymt2-vec/)가 있고 임베딩 API가 설정돼 있을 때만 동작
         self._emb_base = os.environ.get('HYMT2_EMB_BASE', 'https://df.flaglow.cc/embedder/v1')
         self._emb_model = os.environ.get('HYMT2_EMB_MODEL', 'bge-m3-mlx-8bit')
-        self._vec_reuse_sim = float(os.environ.get('HYMT2_VEC_REUSE_SIM', '0.985'))
+        self._vec_reuse_sim = float(os.environ.get('HYMT2_VEC_REUSE_SIM', '0.97'))
         self._vec_ref_sim = float(os.environ.get('HYMT2_VEC_REF_SIM', '0.88'))
+        self._vec_k = int(os.environ.get('HYMT2_VEC_K', '3'))
+        # 연질 게이트 — 참조가 있었는데 출력이 참조 번역들과 바이그램 F1 이하로 이탈하면
+        # 상향(1.8B가 앵커를 무시한 경우). 실측 근거: 참조주입 +6~12pp(설계문서 §8).
+        # 0이면 끔. 대형 직행(무참조 세그먼트를 애초에 7B로)은 HYMT2_DIRECT_BIG=1 —
+        # B층 무참조에서만 7B 우위(+8.6pp), C층에선 역전이라 기본 끔.
+        self._ref_f1_min = float(os.environ.get('HYMT2_REF_F1_GATE', '0.3'))
+        self._direct_big = os.environ.get('HYMT2_DIRECT_BIG', '0') == '1'
         self._vec = self._load_vec(os.environ.get('HYMT2_VEC_DIR', 'configs/hymt2-vec'))
         self._client_emb = None
         if self._vec is not None and self._emb_base:
@@ -201,7 +208,7 @@ class HyMT2Translator(CommonTranslator):
         return cache
 
     def _spill(self, queries: List[str], vec_refs: Dict[int, List[Tuple[str, str]]],
-               pending: List[int]) -> int:
+               pending: List[int], stat: Dict[str, int]) -> int:
         """대형이 필요한 세그먼트를 스플 파일에 적립 — 수리 패스(hymt2_repair.sh)가 소비."""
         rows = []
         for i in pending:
@@ -214,7 +221,7 @@ class HyMT2Translator(CommonTranslator):
         except OSError as e:
             self.logger.warning(f'스필 적립 실패 (결과는 빈 칸으로 진행): {e}')
             return 0
-        self._stat['spill'] = self._stat.get('spill', 0) + len(rows)
+        stat['spill'] = stat.get('spill', 0) + len(rows)
         return len(rows)
 
     # ── 벡터 근접검색 (Tier 0.5) ────────────────────────────────
@@ -273,19 +280,30 @@ class HyMT2Translator(CommonTranslator):
         emb = np.array(vectors, dtype=np.float32)
         return emb / (np.linalg.norm(emb, axis=1, keepdims=True) + 1e-9)
 
-    async def _vec_search(self, keys: List[str]) -> List[Optional[Tuple[float, int]]]:
-        """각 키의 최근접 행 — 동일 키(=TM이 이미 캐치)는 제외하고 (sim, row) 반환."""
+    @staticmethod
+    def _bigram_f1(a: str, b: str) -> float:
+        """연질 유사도 — 문자 바이그램 F1 (평가 스크립트와 동일 규칙)."""
+        def bg(s):
+            s = re.sub(r'\s+', '', s or '')
+            return {s[i:i + 2] for i in range(len(s) - 1)} if len(s) > 1 else {s}
+        A, B = bg(a), bg(b)
+        if not A or not B:
+            return 1.0 if (a or '').strip() == (b or '').strip() else 0.0
+        return 2 * len(A & B) / (len(A) + len(B))
+
+    async def _vec_search(self, keys: List[str], k: int = 3) -> List[List[Tuple[float, int]]]:
+        """각 키의 근접 상위 k행 (유사도 내림차순) — 동일 키(=TM이 이미 캐치)는 제외."""
         q = await self._embed_batch(keys)
         sims = q @ self._vec['emb'].T
         out = []
         for i, key in enumerate(keys):
             row_sims = sims[i]
-            row = int(np.argmax(row_sims))
-            if self._vec['keys'][row] == key:
+            if self._vec['keys'][int(np.argmax(row_sims))] == key:
                 row_sims = row_sims.copy()
-                row_sims[row] = -1.0
-                row = int(np.argmax(row_sims))
-            out.append((float(row_sims[row]), row))
+                row_sims[int(np.argmax(row_sims))] = -1.0
+            top = np.argsort(-row_sims)[:k]
+            # -1.0은 동일키 마스킹 — 0.0(직교)은 후보로 유지, 임계값에서 걸러진다
+            out.append([(float(row_sims[r]), int(r)) for r in top if row_sims[r] >= 0])
         return out
 
     # ── 게이트 ──────────────────────────────────────────────────
@@ -369,7 +387,9 @@ class HyMT2Translator(CommonTranslator):
                 await asyncio.sleep(0.5)
 
     async def _small(self, to_lang: str, query: str,
-                     refs: Optional[List[Tuple[str, str]]] = None) -> Optional[str]:
+                     refs: Optional[List[Tuple[str, str]]] = None,
+                     stat: Optional[Dict[str, int]] = None) -> Optional[str]:
+        stat = stat if stat is not None else self._stat
         extra = {'top_k': 20, 'repetition_penalty': 1.05}
         async with self._sem:
             trans = await self._request(
@@ -383,13 +403,13 @@ class HyMT2Translator(CommonTranslator):
             retry = await self._request(
                 self._client_small, self._small_model, to_lang, query, hint, 0.6, extra, refs)
         if retry is not None and self._gate_ok(query, retry):
-            self._stat['small_retry_ok'] = self._stat.get('small_retry_ok', 0) + 1
+            stat['small_retry_ok'] = stat.get('small_retry_ok', 0) + 1
             return retry
         # 과길이 차선: 게이트 밖이어도 원문 이상으로는 안 긴 최단 후보
         for cand in (retry, trans):
             if cand and self._has_hangul(cand) and self._char_len(cand) < 4 * self._char_len(query):
                 return cand
-        self._stat['small_fail'] = self._stat.get('small_fail', 0) + 1
+        stat['small_fail'] = stat.get('small_fail', 0) + 1
         return None
 
     async def _big(self, to_lang: str, query: str,
@@ -424,9 +444,11 @@ class HyMT2Translator(CommonTranslator):
     # ── 메인 ────────────────────────────────────────────────────
 
     async def _translate(self, from_lang: str, to_lang: str, queries: List[str]) -> List[str]:
-        self._stat = {'tm': 0, 'vec_reuse': 0, 'vec_ref': 0, 'cache': 0, 'small': 0,
-                      'big': 0, 'glm': 0, 'empty': 0, 'spill': 0,
-                      'small_fail': 0, 'small_retry_ok': 0}
+        # 호출별 로컬 통계 — finish.py가 페이지를 병렬 번역하므로 인스턴스 상태는 레이스가 난다.
+        # 완료 시 self._stat 에 반영한다(요약 로그는 항상 이 호출 기준).
+        stat = {'tm': 0, 'vec_reuse': 0, 'vec_ref': 0, 'cache': 0, 'small': 0,
+                'big': 0, 'glm': 0, 'empty': 0, 'spill': 0, 'ref_gate': 0,
+                'small_fail': 0, 'small_retry_ok': 0}
         results: List[Optional[str]] = [None] * len(queries)
         tier_of: Dict[int, str] = {}
 
@@ -437,25 +459,41 @@ class HyMT2Translator(CommonTranslator):
             if hit is not None:
                 results[i] = hit
                 tier_of[i] = 'tm'
-                self._stat['tm'] += 1
+                stat['tm'] += 1
             else:
                 pending.append(i)
 
-        # Tier 0.5 — 벡터 근접검색: 고유사도·고품질행 재사용, 그 아래는 참조 주입
+        # Tier 0.5 — 벡터 근접검색: 고유사도·고품질행 재사용, 그 아래는 상위 k개 참조 주입
         vec_refs: Dict[int, List[Tuple[str, str]]] = {}
+        direct_big = set()
         if pending and self._vec is not None and self._client_emb is not None:
             try:
                 keys = [self._norm(queries[i]) for i in pending]
-                for i, (sim, row) in zip(pending, await self._vec_search(keys)):
-                    if sim < self._vec_ref_sim or not self._vec['trans'][row]:
+                for i, hits in zip(pending, await self._vec_search(keys, self._vec_k)):
+                    if not hits:
+                        if self._direct_big and self._needs_translation(queries[i]):
+                            direct_big.add(i)  # 정규 앵커 없음 — 대형 직행(옵션)
                         continue
-                    if sim >= self._vec_reuse_sim and self._vec['shares'][row] >= 0.75:
+                    best_sim, row = hits[0]
+                    if (best_sim >= self._vec_reuse_sim
+                            and self._vec['shares'][row] >= 0.75
+                            and self._vec['trans'][row]):
                         results[i] = self._vec['trans'][row]
                         tier_of[i] = 'vec'
-                        self._stat['vec_reuse'] += 1
-                    else:
-                        vec_refs[i] = [(self._vec['keys'][row], self._vec['trans'][row])]
-                        self._stat['vec_ref'] += 1
+                        stat['vec_reuse'] += 1
+                        continue
+                    refs = []
+                    for sim, r in hits:
+                        if sim < self._vec_ref_sim:
+                            break
+                        pair = (self._vec['keys'][r], self._vec['trans'][r])
+                        if pair[1] and pair not in refs:
+                            refs.append(pair)
+                    if refs:
+                        vec_refs[i] = refs[:self._vec_k]
+                        stat['vec_ref'] += 1
+                    elif self._direct_big and self._needs_translation(queries[i]):
+                        direct_big.add(i)
                 pending = [i for i in pending if results[i] is None]
             except Exception as e:
                 self.logger.warning(f'벡터 티어 건너뜀 (API?): {e}')
@@ -467,19 +505,32 @@ class HyMT2Translator(CommonTranslator):
                 if hit is not None:
                     results[i] = hit
                     tier_of[i] = 'cache'
-                    self._stat['cache'] += 1
+                    stat['cache'] += 1
             pending = [i for i in pending if results[i] is None]
 
-        # Tier 1 — 1.8B 전수 병렬 (소형 선처리: 대형은 이 웨이브가 끝난 뒤)
-        if pending and self._client_small is not None:
+        # Tier 1 — 1.8B 전수 병렬 (소형 선처리: 대형은 이 웨이브가 끝난 뒤.
+        # 직행 대상(direct_big)은 소형을 건너뛴다)
+        small_todo = [i for i in pending
+                      if i not in direct_big and self._client_small is not None]
+        if small_todo:
             small_results = await asyncio.gather(
-                *(self._small(to_lang, queries[i], vec_refs.get(i)) for i in pending))
-            for i, trans in zip(pending, small_results):
+                *(self._small(to_lang, queries[i], vec_refs.get(i), stat) for i in small_todo))
+            for i, trans in zip(small_todo, small_results):
                 if trans is not None:
                     results[i] = trans
                     tier_of[i] = 'small'
-                    self._stat['small'] += 1
-            pending = [i for i in pending if results[i] is None]
+                    stat['small'] += 1
+
+        # 연질 게이트 — 참조가 있었는데 출력이 모든 참조 번역과 F1 미달이면 상향
+        if self._ref_f1_min > 0:
+            for i in list(pending):
+                if results[i] is not None and i in vec_refs:
+                    best = max(self._bigram_f1(results[i], t) for _, t in vec_refs[i])
+                    if best < self._ref_f1_min:
+                        results[i] = None
+                        tier_of[i] = None
+                        stat['ref_gate'] += 1
+        pending = [i for i in pending if results[i] is None]
 
         # Tier 2 — 7B 실패분 일괄. 배타 모드(기본)에서는 즉시 상향하지 않고
         # 스플에 적립 — 수리 패스(hymt2_repair.sh)가 소형과 맞바꿔 처리한다.
@@ -490,10 +541,10 @@ class HyMT2Translator(CommonTranslator):
                 if trans is not None:
                     results[i] = trans
                     tier_of[i] = 'big'
-                    self._stat['big'] += 1
+                    stat['big'] += 1
             pending = [i for i in pending if results[i] is None]
         if pending and self._escalate_big and self._exclusive:
-            self._spill(queries, vec_refs, pending)
+            self._spill(queries, vec_refs, pending, stat)
 
         # 비상 폴백 — GLM 1회
         if pending and self._client_glm is not None:
@@ -502,29 +553,31 @@ class HyMT2Translator(CommonTranslator):
                 if trans is not None:
                     results[i] = trans
                     tier_of[i] = 'glm'
-                    self._stat['glm'] += 1
+                    stat['glm'] += 1
             pending = [i for i in pending if results[i] is None]
 
         # 잔여 — 빈 칸 (부호뿉 원문은 원문 유지)
         for i in pending:
             results[i] = queries[i] if not self._needs_translation(queries[i]) else ''
             tier_of[i] = 'pass' if results[i] else 'empty'
-            self._stat['empty'] += 1
+            stat['empty'] += 1
 
         self._trace = [
             ('ref_' + tier_of[i] if i in vec_refs and tier_of[i] in ('small', 'big') else
-             tier_of.get(i, 'empty'))
+             (tier_of.get(i) or 'empty'))
             for i in range(len(queries))
         ]
 
+        self._stat = stat
         n = len(queries)
-        resolved_small = (self._stat['tm'] + self._stat['vec_reuse']
-                          + self._stat['cache'] + self._stat['small'])
+        resolved_small = (stat['tm'] + stat['vec_reuse']
+                          + stat['cache'] + stat['small'])
         self.logger.info(
-            f'HyMT2 요약: 총 {n} — TM {self._stat["tm"]}, 벡터재사용 {self._stat["vec_reuse"]}, '
-            f'수리캐시 {self._stat["cache"]}, 1.8B {self._stat["small"]} '
-            f'(참조주입 {self._stat["vec_ref"]}, 재시도 회수 {self._stat["small_retry_ok"]}, '
-            f'실패 {self._stat["small_fail"]}), 7B {self._stat["big"]}, GLM {self._stat["glm"]}, '
-            f'스필 {self._stat["spill"]}, 빈칸 {self._stat["empty"]} '
+            f'HyMT2 요약: 총 {n} — TM {stat["tm"]}, 벡터재사용 {stat["vec_reuse"]}, '
+            f'수리캐시 {stat["cache"]}, 1.8B {stat["small"]} '
+            f'(참조주입 {stat["vec_ref"]}, 재시도 회수 {stat["small_retry_ok"]}, '
+            f'앵커이탈 {stat["ref_gate"]}, 실패 {stat["small_fail"]}), '
+            f'7B {stat["big"]}, GLM {stat["glm"]}, '
+            f'스필 {stat["spill"]}, 빈칸 {stat["empty"]} '
             f'| ≤1.8B 해결률 {resolved_small * 100 // max(n, 1)}%')
         return [r or '' for r in results]

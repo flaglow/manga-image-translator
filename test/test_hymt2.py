@@ -35,6 +35,8 @@ def make_translator(tmp_path, monkeypatch):
         monkeypatch.setenv('HYMT2_CONCURRENCY', '4')
         # 기본은 즉시 상향(기존 테스트 동작 유지) — 배타 테스트는 exclusive=True
         monkeypatch.setenv('HYMT2_EXCLUSIVE', '1' if exclusive else '0')
+        # 연질 게이트는 개별 테스트에서 명시적으로 켠다 (기본 테스트는 앵커 무관 동작)
+        monkeypatch.setenv('HYMT2_REF_F1_GATE', '0')
         monkeypatch.setenv('HYMT2_CACHE', str(tmp_path / 'cache.jsonl'))
         monkeypatch.setenv('HYMT2_SPILL', str(tmp_path / 'spill.jsonl'))
         if cache_lines:
@@ -300,8 +302,72 @@ async def test_vec_search_excludes_same_key(make_translator, monkeypatch):
     t = make_translator(vec=VEC_DB)
     monkeypatch.setattr(type(t), '_embed_batch', _fake_embed([(1, 0, 0)]))
     hits = await t._vec_search(['あ'])
-    sim, row = hits[0]
+    sim, row = hits[0][0]
     assert t._vec['keys'][row] != 'あ' and sim < 0.5
+
+
+REF_DB = [  # 상호 근접 두 행(share<0.75) — 재사용 불가, 상위 k 참조 경로 검증용
+    ('아아', '아아역', 0.6, (1.0, 0.0, 0.0)),
+    ('아아아', '아아아역', 0.55, (0.99, 0.14, 0.0)),
+    ('우우', '우우역', 0.9, (0.0, 0.0, 1.0)),
+]
+
+
+@pytest.mark.asyncio
+async def test_vec_topk_refs(make_translator, monkeypatch):
+    # 두 이웃이 모두 참조 임계(0.88) 위 → 최대 k개까지 주입
+    t = make_translator(vec=REF_DB)
+    monkeypatch.setattr(type(t), '_embed_batch', _fake_embed([(0.995, 0.1, 0.0)]))
+    prompts = []
+
+    async def fake_create(**kwargs):
+        prompts.append(kwargs['messages'][0]['content'])
+        return _fake_resp('아아함')
+
+    t._client_small.chat.completions.create = AsyncMock(side_effect=fake_create)
+    out = await t._translate('auto', 'Korean', ['아악'])
+    assert t._stat['vec_reuse'] == 0 and t._stat['vec_ref'] == 1
+    assert '아아 => 아아역' in prompts[0] and '아아아 => 아아아역' in prompts[0]
+    assert '우우' not in prompts[0]
+    assert out == ['아아함']
+
+
+@pytest.mark.asyncio
+async def test_vec_reuse_threshold_097(make_translator, monkeypatch):
+    # sim 0.975(share 0.8) — 신규 기본 임계 0.97에서 재사용 (구 0.985였으면 미스)
+    t = make_translator(vec=VEC_DB)
+    monkeypatch.setattr(type(t), '_embed_batch', _fake_embed([(0.975, 0.222, 0.0)]))
+    t._client_small.chat.completions.create = AsyncMock()
+    out = await t._translate('auto', 'Korean', ['ぁぁ'])
+    assert out == ['아'] and t._stat['vec_reuse'] == 1
+    t._client_small.chat.completions.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ref_f1_gate_escalates(make_translator, monkeypatch):
+    # 참조('い=>이')가 있는데 출력이 참조와 F1 미달 → 대형 상향 (게이트 켠 경우)
+    t = make_translator(vec=VEC_DB)
+    monkeypatch.setenv('HYMT2_REF_F1_GATE', '0.5')
+    t2 = t  # fixture env는 생성 시 적용되므로 게이트 값을 인스턴스에 수동 반영
+    t2._ref_f1_min = 0.5
+    monkeypatch.setattr(type(t2), '_embed_batch', _fake_embed([(0, 1, 0)]))
+    t2._client_small.chat.completions.create = AsyncMock(return_value=_fake_resp('전혀다른문장'))
+    t2._client_big.chat.completions.create = AsyncMock(return_value=_fake_resp('이야'))
+    out = await t2._translate('auto', 'Korean', ['ぃ'])
+    assert out == ['이야'] and t2._stat['ref_gate'] == 1 and t2._stat['big'] == 1
+
+
+@pytest.mark.asyncio
+async def test_direct_big_option(make_translator, monkeypatch):
+    # HYMT2_DIRECT_BIG=1: 근접 이웃 없음(0.88 미만) → 소형 스킵 대형 직행
+    t = make_translator(vec=VEC_DB)
+    t._direct_big = True
+    monkeypatch.setattr(type(t), '_embed_batch', _fake_embed([(0.6, 0.6, 0.53)]))
+    t._client_small.chat.completions.create = AsyncMock(return_value=_fake_resp('소형결과'))
+    t._client_big.chat.completions.create = AsyncMock(return_value=_fake_resp('대형결과'))
+    out = await t._translate('auto', 'Korean', ['ぇ'])
+    assert out == ['대형결과'] and t._stat['big'] == 1
+    t._client_small.chat.completions.create.assert_not_awaited()
 
 
 def test_gate_rules():
