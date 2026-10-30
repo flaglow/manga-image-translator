@@ -88,6 +88,9 @@ class HyMT2Translator(CommonTranslator):
 
         # 페이지 요약 로그용 카운터 (translate() 호출당 리셋)
         self._stat = {}
+        # 세그먼트별 최종 처리 티어 (평가·디버깅용): 'tm','vec','small','small_retry',
+        # 'big','glm','empty','pass' — 참조 주입됐으면 'ref_' 접두
+        self._trace = []
 
     def parse_args(self, args):
         pass  # toml 확장 필드 없음 — env로만 재정의 (hdtrans 관례)
@@ -262,7 +265,11 @@ class HyMT2Translator(CommonTranslator):
 
     def _build_prompt(self, to_lang: str, query: str, hint: str = '',
                       refs: Optional[List[Tuple[str, str]]] = None) -> str:
-        """공식 프롬프트 + 용어집/벡터참조 병합 (단일 Reference 블록, 상한 8쌍)."""
+        """공식 프롬프트 + 용어집/벡터참조 병합 (단일 Reference 블록, 상한 8쌍).
+
+        스타일 라인은 Hy-MT2 공식 스타일 지시 형식(【...】 엄격 준수)을 쓴다 —
+        평가에서 1.8B가 해요체로 기우는 계통 편차(코퍼스 관례는 반말 대사체) 교정용.
+        """
         parts = []
         pairs = [kv for kv in self._glossary if kv[0] in query][:self._GLOSSARY_MAX]
         for r in (refs or []):
@@ -273,6 +280,9 @@ class HyMT2Translator(CommonTranslator):
         if pairs:
             ref = '\n'.join(f'{k} => {v}' for k, v in pairs)
             parts.append(f'Reference the following translations:\n{ref}')
+        parts.append(
+            f'The translation style must strictly conform to 【manga dialogue: natural colloquial '
+            f'{to_lang}, casual speech, short and punchy】.')
         parts.append(
             f'Translate the following text into {to_lang}, note that you need only output '
             f'the translated result without any additional explanation:')
@@ -365,6 +375,7 @@ class HyMT2Translator(CommonTranslator):
         self._stat = {'tm': 0, 'vec_reuse': 0, 'vec_ref': 0, 'small': 0, 'big': 0, 'glm': 0,
                       'empty': 0, 'small_fail': 0, 'small_retry_ok': 0}
         results: List[Optional[str]] = [None] * len(queries)
+        tier_of: Dict[int, str] = {}
 
         # Tier 0 — TM 정확일치 (LLM 호출 0)
         pending = []
@@ -372,6 +383,7 @@ class HyMT2Translator(CommonTranslator):
             hit = self._tm_lookup(q)
             if hit is not None:
                 results[i] = hit
+                tier_of[i] = 'tm'
                 self._stat['tm'] += 1
             else:
                 pending.append(i)
@@ -386,6 +398,7 @@ class HyMT2Translator(CommonTranslator):
                         continue
                     if sim >= self._vec_reuse_sim and self._vec['shares'][row] >= 0.75:
                         results[i] = self._vec['trans'][row]
+                        tier_of[i] = 'vec'
                         self._stat['vec_reuse'] += 1
                     else:
                         vec_refs[i] = [(self._vec['keys'][row], self._vec['trans'][row])]
@@ -401,6 +414,7 @@ class HyMT2Translator(CommonTranslator):
             for i, trans in zip(pending, small_results):
                 if trans is not None:
                     results[i] = trans
+                    tier_of[i] = 'small'
                     self._stat['small'] += 1
             pending = [i for i in pending if results[i] is None]
 
@@ -411,6 +425,7 @@ class HyMT2Translator(CommonTranslator):
             for i, trans in zip(pending, big_results):
                 if trans is not None:
                     results[i] = trans
+                    tier_of[i] = 'big'
                     self._stat['big'] += 1
             pending = [i for i in pending if results[i] is None]
 
@@ -420,13 +435,21 @@ class HyMT2Translator(CommonTranslator):
             for i, trans in zip(pending, glm_results):
                 if trans is not None:
                     results[i] = trans
+                    tier_of[i] = 'glm'
                     self._stat['glm'] += 1
             pending = [i for i in pending if results[i] is None]
 
         # 잔여 — 빈 칸 (부호뿉 원문은 원문 유지)
         for i in pending:
             results[i] = queries[i] if not self._needs_translation(queries[i]) else ''
+            tier_of[i] = 'pass' if results[i] else 'empty'
             self._stat['empty'] += 1
+
+        self._trace = [
+            ('ref_' + tier_of[i] if i in vec_refs and tier_of[i] in ('small', 'big') else
+             tier_of.get(i, 'empty'))
+            for i in range(len(queries))
+        ]
 
         n = len(queries)
         resolved_small = self._stat['tm'] + self._stat['vec_reuse'] + self._stat['small']

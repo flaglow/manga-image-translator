@@ -73,9 +73,42 @@ FINISH_ENV = {
     'CUSTOM_OPENAI_THINKING': _env('OPENAI_COMPATIBLE_THINKING'),
     'CUSTOM_OPENAI_TIMEOUT': _env('OPENAI_COMPATIBLE_TIMEOUT'),
     'CUSTOM_OPENAI_MAX_CONCURRENCY': _env('FINISH_API_CONCURRENCY', '3'),
+    # Hy-MT2 로컬 LLM (hymt2-kor.toml 선택 시) — finish 컨테이너는 hymt2 네트워크에 붙어
+    # vLLM 컨테이너명으로 직접 통신(WSL 방화벽 무관). 네트워크가 없으면(vLLM 미기동)
+    # GLM/hdTrans 경로는 영향 없음 — hymt2 선택 시에만 필요.
+    # .env의 HYMT2_*로 재정의 가능하되 값은 컨테이너 관점 경로여야 한다.
+    # 빈 값은 전달 생략(모듈 기본값 사용).
+    'HYMT2_SMALL_BASE': _env('HYMT2_SMALL_BASE', 'http://mit_hymt2_small:8011/v1'),
+    'HYMT2_BIG_BASE': _env('HYMT2_BIG_BASE', 'http://mit_hymt2_big:8012/v1'),
+    'HYMT2_SMALL_MODEL': _env('HYMT2_SMALL_MODEL'),
+    'HYMT2_BIG_MODEL': _env('HYMT2_BIG_MODEL'),
+    'HYMT2_ESCALATE': _env('HYMT2_ESCALATE'),
+    'HYMT2_GL_FALLBACK': _env('HYMT2_GL_FALLBACK'),
+    'HYMT2_CONCURRENCY': _env('HYMT2_CONCURRENCY'),
+    'HYMT2_TM': _env('HYMT2_TM'),
+    'HYMT2_GLOSSARY': _env('HYMT2_GLOSSARY'),
+    'HYMT2_VEC_DIR': _env('HYMT2_VEC_DIR'),
+    'HYMT2_EMB_BASE': _env('HYMT2_EMB_BASE'),
+    'HYMT2_EMB_MODEL': _env('HYMT2_EMB_MODEL'),
+    'HYMT2_VEC_REUSE_SIM': _env('HYMT2_VEC_REUSE_SIM'),
+    'HYMT2_VEC_REF_SIM': _env('HYMT2_VEC_REF_SIM'),
 }
 
 IMAGE = 'zyddnys/manga-image-translator:main'
+
+
+def _docker_network_exists(name):
+    """docker network inspect 으로 존재 확인 — vLLM(hymt2) 컴포즈가 만든 네트워크."""
+    try:
+        subprocess.run(['docker', 'network', 'inspect', name],
+                       capture_output=True, check=True, timeout=5)
+        return True
+    except Exception:
+        return False
+
+
+# Hy-MT2 vLLM 서버 네트워크 — 존재할 때만 finish 컨테이너를 attach (미기동이면 기본 브리지)
+FINISH_NETWORK = 'hymt2' if _docker_network_exists('hymt2') else ''
 
 FINISH_CONCURRENCY = int(_env('FINISH_CONCURRENCY', '3') or '3')
 
@@ -756,9 +789,14 @@ def run_job(job):
         # GPU 컨테이너와 무관한 독립 CPU 컨테이너(docker run) — GPU 워커 레인을 점유하지 않는다
         cmd = ['docker', 'run', '--rm', '--name', job.get('finish_cname') or 'mit-finish-adhoc',
                '--user', '1000:1000']
+        if FINISH_NETWORK:
+            # vLLM(Hy-MT2) 네트워크 — 컨테이너명 DNS로 직접, 방화벽/게이트웨이 의존 없음
+            cmd += ['--network', FINISH_NETWORK]
         for host_path, cpath in FINISH_MOUNTS:
             cmd += ['-v', f'{host_path}:{cpath}']
         for k, v in FINISH_ENV.items():
+            if not v and k.startswith('HYMT2_'):
+                continue  # 빈 HYMT2_* 는 생략 — 모듈 기본값이 컨테이너 문맥에 맞음
             cmd += ['-e', f'{k}={v}']
         cmd += ['-w', '/app', '--entrypoint', 'python', IMAGE,
                 '-m', 'manga_translator.mode.finish', '-v',

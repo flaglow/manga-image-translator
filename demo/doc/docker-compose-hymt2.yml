@@ -17,11 +17,13 @@ services:
   hymt2-small:
     image: vllm/vllm-openai:latest
     container_name: mit_hymt2_small
+    networks: [hymt2]
     command: >
       --model tencent/Hy-MT2-1.8B-FP8
       --served-model-name hymt2-1.8b
       --max-model-len 4096
-      --gpu-memory-utilization 0.12
+      --gpu-memory-utilization 0.2
+      --enforce-eager
       --port 8011
     # environment:
     #   - HF_TOKEN=
@@ -49,6 +51,7 @@ services:
     image: vllm/vllm-openai:latest
     container_name: mit_hymt2_big
     profiles: ["escalation"]
+    networks: [hymt2]
     command: >
       --model tencent/Hy-MT2-30B-A3B-FP8
       --served-model-name hymt2-30b
@@ -77,3 +80,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 300s
+
+# finish/평가 컨테이너가 vLLM에 붙는 명명 네트워크 (방화벽 무관 컨테이너 DNS 통신)
+networks:
+  hymt2:
+    name: hymt2
