@@ -725,7 +725,7 @@ def _vllm_demand():
             VLLM_STATE['idle_ticks'] = 0
         elif not needed and up:
             VLLM_STATE['idle_ticks'] += 1
-            if VLLM_STATE['idle_ticks'] >= 20:  # 20틱(≈7분) 무수요
+            if VLLM_STATE['idle_ticks'] >= 9:  # 9틱(3분) 무수요
                 subprocess.run(['docker', 'stop', 'mit_hymt2_small'],
                                capture_output=True, timeout=60)
                 print('[vLLM] 무수요 — hymt2-small 정지 (온디맨드)', flush=True)

@@ -32,7 +32,7 @@
 - `./hymt2_repair.sh` — 배타 모드 수리 패스(기본 `HYMT2_EXCLUSIVE=1`): 로컬 LLM 동시 1개 원칙. 소형 정지 → 7B 기동 → 스플(`tmp/hymt2-spill/`) 일괄 수리 → 캐시(`tmp/hymt2-cache/`) 저장 → 소형 재기동
 - `configs/` — `gpt-kor.toml`(번역), `pass_a.toml`(pre 전용), `book-ocr.toml`(OCR), `hd-kor.toml`(hdTrans), `hymt2-kor.toml`(Hy-MT2 로컬 LLM)
 - `demo/doc/docker-compose-web-with-gpu.yml` — GPU 컨테이너 5서비스 (gpu1~5)
-- 기동/종료: `./startup.sh [--resume <폴더>...]` / `./shutdown.sh`. **vLLM(hymt2-small)은 온디맨드** — 큐에 작업이 있으면 GUI 스케일러가 기동, 무수요 7분 후 자동 정지(시작 ~1분, finish 워커가 헬스 대기 후 진행). hymt2 네트워크만 상시 존재. **전처리 GPU 컨테이너는 1대(gpu1)가 기본 원칙** (`docs/decisions/0001-gpu-single-container-policy.md` — VRAM당 처리량 4.3 p/분/GB로 최적, 3대는 +53%에 그침). 상한만 vLLM 감지 시 3(`GPU_MAX_WITH_LLM`)
+- 기동/종료: `./startup.sh [--resume <폴더>...]` / `./shutdown.sh`. **vLLM(hymt2-small)은 온디맨드** — 큐에 작업이 있으면 GUI 스케일러가 기동, 무수요 3분 후 자동 정지(시작 ~1분, finish 워커가 헬스 대기 후 진행). hymt2 네트워크만 상시 존재. **전처리 GPU 컨테이너는 1대(gpu1)가 기본 원칙** (`docs/decisions/0001-gpu-single-container-policy.md` — VRAM당 처리량 4.3 p/분/GB로 최적, 3대는 +53%에 그침). 상한만 vLLM 감지 시 3(`GPU_MAX_WITH_LLM`)
 - finish 레인 동시성: env `FINISH_CONCURRENCY` — 로컬 LLM(vLLM) 감지 시 기본 10, GLM 운용 시 3(레이트리밋). GLM API 동시성은 `FINISH_API_CONCURRENCY`(기본 3, 레인 수와 분리). GPU 목표 개수 초기값: env `GPU_CONTAINER_COUNT`(기본 3)
 
 ## 커밋 컨벤션
