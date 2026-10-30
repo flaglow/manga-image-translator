@@ -113,7 +113,12 @@ def _docker_network_exists(name):
 # Hy-MT2 vLLM 서버 네트워크 — 존재할 때만 finish 컨테이너를 attach (미기동이면 기본 브리지)
 FINISH_NETWORK = 'hymt2' if _docker_network_exists('hymt2') else ''
 
-FINISH_CONCURRENCY = int(_env('FINISH_CONCURRENCY', '3') or '3')
+# finish 레인(번역·렌더 컨테이너) 동시성 — 과거 기본 3은 GLM API 레이트리밋(429) 대응.
+# 로컬 LLM(vLLM) 감지 시 제한이 없으므로 기본 10 (CPU 24코어 기준 여유; 렌더 CPU 병렬).
+# GLM 운용(vLLM 없음)은 종전대로 3 — API 과부하 방지. env FINISH_CONCURRENCY로 재정의.
+# 참고: GLM API 동시성은 FINISH_API_CONCURRENCY(별도, 기본 3) — 레인 수와 분리됐다.
+FINISH_CONCURRENCY = int(_env(
+    'FINISH_CONCURRENCY', '10' if FINISH_NETWORK else '3') or '3')
 
 FINISH_MOUNTS = [
     (os.path.join(ROOT, 'data'), '/app/data'),
