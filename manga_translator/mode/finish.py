@@ -89,8 +89,10 @@ def count_cache_pkls(cache_dir: str) -> int:
 
 def classify_from_cache(cache_dir, dest, overwrite):
     """수리(refit) 모드 — 원본 없이 캐시(png+pkl)만으로 렌더 대상을 구성한다.
-    캐시가 없으면 스킵(원본 카피 불가), 출력은 캐시 해상도 PNG."""
+    텍스트 없는 페이지(표지·삽화)는 원본 카피 대신 캐시 png(시각상 동일)를 복사한다.
+    캐시 png가 없는 페이지만 스킵, 출력은 캐시 해상도 PNG."""
     render_pages = []
+    copy_pages = []     # (cache_png, dest_path) — 원본 대신 캐시 png 복사
     image_count = skipped = 0
     for root, _subdirs, files in os.walk(cache_dir):
         for f in natural_sort(files):
@@ -115,7 +117,9 @@ def classify_from_cache(cache_dir, dest, overwrite):
                 continue
             if regions:
                 render_pages.append((None, dest_path, png_path, regions))
-    return render_pages, [], image_count, skipped
+            else:
+                copy_pages.append((png_path, dest_path))
+    return render_pages, copy_pages, image_count, skipped
 
 
 def classify_pages(input_path, cache_dir, dest, overwrite):
