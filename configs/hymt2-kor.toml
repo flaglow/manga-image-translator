@@ -1,0 +1,56 @@
+mask_dilation_offset = 30
+
+[render]
+# renderer = "default"
+renderer = "manga2eng"
+alignment = "auto"
+disable_font_border = true
+# 가로쓰기 강제: 세로 풍선 넘침/어긋남 방지, offset 3: 읽기 편한 폰트 크기 (2026-10-03 비교 테스트로 확정)
+font_size_offset = 3
+font_size_minimum = 10
+direction = "horizontal"
+uppercase = false
+lowercase = false
+gimp_font = "BMKIRANGHAERANG-TTF"
+no_hyphenation = true
+
+[upscale]
+upscaler = "esrgan"
+revert_upscaling = false
+
+[translator]
+# Hy-MT2 로컬 LLM (vLLM) — TM → 1.8B-FP8 전수 → 게이트 → 30B-A3B-FP8 에스컬레이션
+# 배포: demo/doc/docker-compose-hymt2.yml (포트 8011/8012, big은 --profile escalation)
+# 재정의: HYMT2_SMALL_BASE / HYMT2_BIG_BASE(빈 값=30B 끔) / HYMT2_CONCURRENCY /
+#         HYMT2_TM / HYMT2_GLOSSARY / HYMT2_GL_FALLBACK — translators/hymt2.py 헤더 참조
+# 설계: docs/로컬 LLM 번역 파이프라인 설계__hymt2.md
+translator = "hymt2"
+target_lang = "KOR"
+no_text_lang_skip = false
+
+[detector]
+detector = "default"
+detection_size = 2048
+text_threshold = 0.5
+det_rotate = false
+det_auto_rotate = true
+det_invert = false
+det_gamma_correct = false
+box_threshold = 0.7
+unclip_ratio = 2.3
+
+[colorizer]
+colorization_size = 576
+denoise_sigma = 30
+colorizer = "none"
+
+[inpainter]
+inpainter = "lama_large"
+inpainting_size = 2048
+inpainting_precision = "bf16"
+
+[ocr]
+use_mocr_merge = false
+ocr = "48px"
+min_text_length = 0
+ignore_bubble = 0

@@ -124,6 +124,7 @@ class Translator(str, Enum):
     gemini_2stage = "gemini_2stage"
     custom_openai = "custom_openai"
     hdtrans = "hdtrans"
+    hymt2 = "hymt2"
     offline = "offline"
     nllb = "nllb"
     nllb_big = "nllb_big"

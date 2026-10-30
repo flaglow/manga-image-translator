@@ -27,6 +27,7 @@ from .gemini import GeminiTranslator
 from .gemini_2stage import Gemini2StageTranslator
 from .custom_openai import CustomOpenAiTranslator
 from .hdtrans import HdTransTranslator
+from .hymt2 import HyMT2Translator
 from ..config import Translator, TranslatorConfig, TranslatorChain
 from ..utils import Context
 
@@ -68,6 +69,7 @@ TRANSLATORS = {
     Translator.original: OriginalTranslator,
     Translator.sakura: SakuraTranslator,
     Translator.hdtrans: HdTransTranslator,
+    Translator.hymt2: HyMT2Translator,
     **GPT_TRANSLATORS,
     **OFFLINE_TRANSLATORS,
 }
