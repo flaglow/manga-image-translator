@@ -92,10 +92,11 @@ class HyMT2Translator(CommonTranslator):
         self._vec_ref_sim = float(os.environ.get('HYMT2_VEC_REF_SIM', '0.88'))
         self._vec_k = int(os.environ.get('HYMT2_VEC_K', '3'))
         # 연질 게이트 — 참조가 있었는데 출력이 참조 번역들과 바이그램 F1 이하로 이탈하면
-        # 상향(1.8B가 앵커를 무시한 경우). 실측 근거: 참조주입 +6~12pp(설계문서 §8).
+        # 상향(1.8B가 앵커를 무시한 경우). 실측 근거: 참조주입 +6~12pp, 실대사 비교에서
+        # 7B F1 52.3 vs 1.8B 40.2(우세 38/13) — 0.45로 올려 7B 비중 확대(설계문서 §8).
         # 0이면 끔. 대형 직행(무참조 세그먼트를 애초에 7B로)은 HYMT2_DIRECT_BIG=1 —
-        # B층 무참조에서만 7B 우위(+8.6pp), C층에선 역전이라 기본 끔.
-        self._ref_f1_min = float(os.environ.get('HYMT2_REF_F1_GATE', '0.3'))
+        # B층 무참조에서만 7B 우위, C층에선 역전이라 기본 끔.
+        self._ref_f1_min = float(os.environ.get('HYMT2_REF_F1_GATE', '0.45'))
         self._direct_big = os.environ.get('HYMT2_DIRECT_BIG', '0') == '1'
         self._vec = self._load_vec(os.environ.get('HYMT2_VEC_DIR', 'configs/hymt2-vec'))
         self._client_emb = None

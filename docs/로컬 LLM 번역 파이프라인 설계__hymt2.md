@@ -135,7 +135,7 @@ GPT 문서의 "유사일치는 자동 적용 금지, 참고로만" 원칙을 임
   `HYMT2_EMB_BASE`(기본 `https://df.flaglow.cc/embedder/v1`)/`HYMT2_EMB_MODEL`
   (bge-m3-mlx-8bit)/`HYMT2_VEC_DIR`(기본 configs/hymt2-vec, 없거나 빈 값=티어 끔),
   `HYMT2_VEC_REUSE_SIM`(0.97)/`HYMT2_VEC_REF_SIM`(0.88)/`HYMT2_VEC_K`(3,
-  참조 상위 k개)/`HYMT2_REF_F1_GATE`(0.3, 출력-참조 바이그램 F1 하한 — 미달 시 7B
+  참조 상위 k개)/`HYMT2_REF_F1_GATE`(0.45, 출력-참조 바이그램 F1 하한 — 미달 시 7B
   상향, 0=끔)/`HYMT2_DIRECT_BIG`(0, 무참조 세그먼트 7B 직행),
   `HYMT2_EXCLUSIVE`(1=로컬 LLM 한 번에 한 모델·스필/수리 흐름, 0=즉시 상향),
   `HYMT2_CACHE`/`HYMT2_SPILL`(기본 tmp/hymt2-cache/big.jsonl · tmp/hymt2-spill/pending.jsonl).
@@ -172,6 +172,15 @@ GPT 문서의 "유사일치는 자동 적용 금지, 참고로만" 원칙을 임
   다만 t=0.7 샘플링 변동으로 B층 F1 총량은 1.8B 단독과 동일 수준(±노이즈).
 - **운영 딜**: 품질 상한은 7B 전수(47.0), 원가·속로는 1.8B 우선+게이트. 게이트 임계와
   직행 옵션으로 중간 지점 조정 가능.
+
+### 실대사 3자 비교 (2026-10-30, 실작업 페이지 60문장 — 백페이지 상용구 제외)
+
+- 동일 문장을 1.8B/7B 파이프라인으로 각각 번역, GLM은 로그 다수역:
+  **1.8B F1 40.2 / 7B F1 52.3, 7B 우세 38·열세 13** — 감정 실린 대사에서 7B 우위가
+  코퍼스 무작위 샘플(+11pp)보다 더 큼(+12pp, 승률 63%).
+- 근거로 `HYMT2_REF_F1_GATE` 기본값 0.3→0.45 상향 — 7B 비중 확대. 7B도 페이지
+  3.4s(GLM 12.2s)라 비중을 올려도 속도 여유 충분.
+- 표: `.omc/research/hymt2-poc/dialogue_compare.tsv` (machine-local).
 
 - 7B는 1.8B 대비 B층 F1 +7.4pp·근접비중 +10.5pp — **표현 관례가 GLM에 실제로 더 가깝다**.
   다만 정확일치 기준 격차는 여전해, "GLM 다수역과 동일 문장"은 GLM 자기일관성(31%)이 천장.
