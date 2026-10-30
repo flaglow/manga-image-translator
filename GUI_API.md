@@ -48,6 +48,15 @@
   요구: `vendor/hdtrans/hdTrans-0.7.4/` (바이너리+`hdtrans-data/`+`lib/`, compose·FINISH_MOUNTS로
   컨테이너 마운트됨). 사용자 사전 `configs/hdtrans-userdict.txt` 자동 적용
   (빠짐: `HDTRANS_PATH`/`HDTRANS_SPEECH`/`HDTRANS_USERDICT`/`HDTRANS_CONCURRENCY` env로 재정의)
+- `hymt2-kor.toml` — **Hy-MT2 로컬 LLM 번역** (vLLM, API 비용 0). TM 정확일치 →
+  벡터 근접(df.flaglow.cc 임베딩) → 1.8B-FP8 전수 → 품질 게이트 → 7B-FP8 에스컬레이션.
+  요구: `docker compose -f demo/doc/docker-compose-hymt2.yml up -d hymt2-small` (포트 8011,
+  ~4GB VRAM) + `configs/hymt2-vec/` (git 제외 — 없으면 벡터 티어 자동 비활성).
+  **배타 모드 기본**(`HYMT2_EXCLUSIVE=1`): 대형(7B, 포트 8012)은 즉시 상향하지 않고
+  스플 적립 → `./hymt2_repair.sh` 로 스왑 수리(소형 정지→7B→수리→소형 복구) → 캐시 재사용.
+  finish 컨테이너는 GUI가 `hymt2` 네트워크에 자동 attach (vLLM 컨테이너명 DNS 통신).
+  재정의: `HYMT2_SMALL_BASE`/`HYMT2_BIG_BASE`/`HYMT2_CONCURRENCY`/`HYMT2_REF_F1_GATE` 등 —
+  `manga_translator/translators/hymt2.py` 헤더 참조. 설계·실측: `docs/로컬 LLM 번역 파이프라인 설계__hymt2.md`
 
 
 ## 제어
