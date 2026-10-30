@@ -1316,7 +1316,9 @@ def api_gpu(body):
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         # API 감사 로그 — 어느 요청이 어떤 config로 들어오는지 /tmp/translate_gui.log 에 남긴다
-        print(f"[http] {self.address_string()} {fmt % args}", flush=True)
+        import datetime
+        ts = datetime.datetime.now().strftime('%m-%d %H:%M:%S')
+        print(f"[http] {ts} {self.address_string()} {fmt % args}", flush=True)
 
     # ---- helpers
     def _json(self, obj, code=200):
