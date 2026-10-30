@@ -82,8 +82,8 @@ class HyMT2Translator(CommonTranslator):
         self._glossary = self._load_glossary(os.environ.get(
             'HYMT2_GLOSSARY', 'configs/hdtrans-userdict.txt'))
         adult = os.environ.get('HYMT2_ADULT_DICT', 'configs/hymt2-adult-dict.tsv')
-        if adult:
-            self._glossary += self._load_glossary(adult)
+        self._adult_terms = self._load_glossary(adult) if adult else []
+        self._glossary += self._adult_terms
         # 배타 모드 수리 캐시/스필 — tmp/ 는 컨테이너에 마운트돼 공유된다
         self._cache_path = os.environ.get('HYMT2_CACHE', 'tmp/hymt2-cache/big.jsonl')
         self._spill_path = os.environ.get('HYMT2_SPILL', 'tmp/hymt2-spill/pending.jsonl')
@@ -185,6 +185,25 @@ class HyMT2Translator(CommonTranslator):
                     entries.append((k.strip(), v.strip()))
         self.logger.info(f'용어집 로드: {len(entries)} 엔트리 ({path})')
         return entries
+
+    # 성인 용어 최종 안전망 — 원문에 용어집 키가 있는데 출력이 순화 토큰으로 샜으면
+    # 해당 키의 역어로 교체(조사는 명사 뒤에 그대로 붙어 자연 보존: 성기가→자지가).
+    _EUPH_TOKENS = ('성기', '음부', '그곳', '그기', '그거', '그것')
+
+    def _adult_enforce(self, query: str, trans: str) -> str:
+        if not trans:
+            return trans
+        value = None
+        for k, v in self._adult_terms:
+            if k in query:
+                value = v
+                break
+        if value is None:
+            return trans
+        for tok in self._EUPH_TOKENS:
+            if tok in trans:
+                trans = trans.replace(tok, value)
+        return trans
 
     # ── 배타 모드: 수리 캐시·스필 ───────────────────────────────
 
@@ -578,6 +597,8 @@ class HyMT2Translator(CommonTranslator):
              (tier_of.get(i) or 'empty'))
             for i in range(len(queries))
         ]
+        # 순화 안전망 — 마지막에 일괄 적용(모든 티어 공통)
+        results = [self._adult_enforce(q, r) for q, r in zip(queries, results)]
 
         self._stat = stat
         n = len(queries)

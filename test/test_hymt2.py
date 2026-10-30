@@ -381,6 +381,16 @@ def test_adult_dict_injection(make_translator):
     assert 'never euphemize' in p
 
 
+def test_adult_enforce_sweep(make_translator):
+    # 순화 안전망 — 원문에 성인 용어 있을 때만 교체, 조사는 명사 교체로 자연 보존
+    t = make_translator()
+    assert t._adult_enforce('おちんちんが入っていく', '내 성기가 들어가고 있어…') == \
+        '내 자지가 들어가고 있어…'
+    assert t._adult_enforce('おまんこに', '그곳에 넣어줘') == '보지에 넣어줘'
+    # 원문에 용어 없으면 미적용 (문맥 오조작 방지)
+    assert t._adult_enforce('公園に行こう', '그곳에 가자') == '그곳에 가자'
+
+
 def test_gate_rules():
     from manga_translator.translators.hymt2 import HyMT2Translator as H
     assert H._gate_ok('どうした', '어떡해')
