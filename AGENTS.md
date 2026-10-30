@@ -28,7 +28,8 @@
 - `translate_gui.py` — 대시보드 + HTTP API(8787). 작업 큐, 2레인(GPU: pre/full · 독립 CPU 컨테이너: finish), GPU 오토스케일러(목표 개수 1~5, 기본 3, `.gpu_count`에 저장, 20초 주기). API 명세: `GUI_API.md`
 - `manga_translator/mode/finish.py` — Pass B. GPU 캐시(`tmp/gpu_pre/<rel>/{png,pkl}`) 기반 번역·렌더링 (GPU 불필요)
 - `manga_translator/translators/custom_openai.py` — GLM 번역기. 세그먼트별 품질 게이트(번역 거부 감지·재시도, 원문 2배 길이 하드캡, 정상 세그먼트 보존), 429 적응 동시성
-- `manga_translator/translators/hymt2.py` — Hy-MT2 로컬 LLM 번역기(vLLM). TM 정확일치 → 벡터 근접검색(df.flaglow.cc 임베딩 + numpy 평탄 인덱스, `configs/hymt2-vec/` — git 제외) → 1.8B-FP8 전수 → 게이트 → 30B-A3B-FP8 에스컬레이션(+GLM 비상 폴백). `configs/hymt2-kor.toml`로 선택, `HYMT2_*` env로 재정의. 설계: `docs/로컬 LLM 번역 파이프라인 설계__hymt2.md`
+- `manga_translator/translators/hymt2.py` — Hy-MT2 로컬 LLM 번역기(vLLM). TM 정확일치 → 벡터 근접검색(df.flaglow.cc 임베딩 + numpy 평탄 인덱스, `configs/hymt2-vec/` — git 제외) → 수리 캐시 → 1.8B-FP8 전수 → 게이트 → 30B-A3B-FP8 에스컬레이션(+GLM 비상 폴백). `configs/hymt2-kor.toml`로 선택, `HYMT2_*` env로 재정의. 설계: `docs/로컬 LLM 번역 파이프라인 설계__hymt2.md`
+- `./hymt2_repair.sh` — 배타 모드 수리 패스(기본 `HYMT2_EXCLUSIVE=1`): 로컬 LLM 동시 1개 원칙. 소형 정지 → 30B 기동 → 스플(`tmp/hymt2-spill/`) 일괄 수리 → 캐시(`tmp/hymt2-cache/`) 저장 → 소형 재기동
 - `configs/` — `gpt-kor.toml`(번역), `pass_a.toml`(pre 전용), `book-ocr.toml`(OCR), `hd-kor.toml`(hdTrans), `hymt2-kor.toml`(Hy-MT2 로컬 LLM)
 - `demo/doc/docker-compose-web-with-gpu.yml` — GPU 컨테이너 5서비스 (gpu1~5)
 - 기동/종료: `./startup.sh [--resume <폴더>...]` / `./shutdown.sh`

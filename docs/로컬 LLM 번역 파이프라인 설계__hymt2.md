@@ -21,8 +21,8 @@
 
 | 서비스 | 모델 | VRAM | RAM | 기동 |
 |---|---|---|---|---|
-| hymt2-small (상시) | Hy-MT2-1.8B-FP8 | ~3–4GB (KV캐시 포함) | ~1GB | 파이프라인과 동시 상시 |
-| hymt2-big (에스컬레이션) | Hy-MT2-30B-A3B-FP8 (MoE, 활성 3B) | ~12–14GB (`--cpu-offload-gb` 로 일부 전문가 CPU 이관) | +~18GB | compose profile `escalation` — 필요시만 |
+| hymt2-small (기본 단독) | Hy-MT2-1.8B-FP8 | ~3–4GB (KV캐시 포함) | ~1GB | 파이프라인과 동시 상시 |
+| hymt2-big (수리 패스) | Hy-MT2-30B-A3B-FP8 (MoE, 활성 3B) | ~13GB (`--cpu-offload-gb 18` 로 전문가 일부 CPU 이관) | +~18GB | **배타 모드** — `./hymt2_repair.sh` 스왑 시에만 (§3.6) |
 | GLM 폴백 | (외부 API) | 0 | 0 | big 다운 + env 설정 시만 |
 
 - 4090 = Ada → FP8 가속 지원. 1.8B-FP8 가중치 ~1.9GB.
@@ -82,6 +82,26 @@ GPT 문서의 "유사일치는 자동 적용 금지, 참고로만" 원칙을 임
 - **후보(v2)**: `df.flaglow.cc /reranker` (bge-reranker-v2-m3)로 참조 top-K 재순위 —
   임계값 하위 후보들까지 안전하게 소비 가능.
 
+## 3.6 배타 모드 — 로컬 LLM 한 번에 한 모델 (기본)
+
+두 vLLM 서버(1.8B 상시 + 30B 필요시)를 동시에 올리면 VRAM·전력 부담이 크다.
+기본 정책(`HYMT2_EXCLUSIVE=1`)은 **즉시 상향을 금지**하고 아래 흐름으로 대체한다:
+
+```
+번역 중 소형 게이트 실패 → 스플 적립 (tmp/hymt2-spill/pending.jsonl, 원문+참조 보존)
+                             → 빈 칸/폴백으로 렌더링은 계속
+./hymt2_repair.sh           → 소형 정지 → 30B 기동(profile escalation) → 헬스 대기 →
+                              스플 일괄 수리(manga_translator/translators/hymt2_repair) →
+                              성공은 캐시(tmp/hymt2-cache/big.jsonl)에, 실패는 스플 유지 →
+                              30B 정지 → 소형 재기동 (실패 시에도 소형 복구 보장)
+이후 번역                    → Tier 0.6 수리 캐시 조회가 빈 칸을 채움 (재렌더링 대상만)
+```
+
+- 스플/캐시는 `tmp/` 에 마운트 기반 공유 — finish 컨테이너·수리 컨테이너·호스트가
+  같은 파일을 본다. 옵션: `HYMT2_EXCLUSIVE=0`이면 기존 즉시 상향(30B 동시 기동 운용).
+- 빈 칸으로 렌더링된 페이지는 수리 후 `--overwrite` 재렌더링으로 완성한다
+  (finish.py는 dest 존재 시 스킵이 기본).
+
 ## 4. 모델 전용 설정 (Hy-MT2 공식)
 
 - 프롬프트(EN 기본형, 대상 언어는 **전체 언어명** 사용):
@@ -112,7 +132,9 @@ GPT 문서의 "유사일치는 자동 적용 금지, 참고로만" 원칙을 임
   `HYMT2_GL_FALLBACK`(1=CUSTOM_OPENAI_* 환경으로 GLM 비상 폴백),
   `HYMT2_EMB_BASE`(기본 `https://df.flaglow.cc/embedder/v1`)/`HYMT2_EMB_MODEL`
   (bge-m3-mlx-8bit)/`HYMT2_VEC_DIR`(기본 configs/hymt2-vec, 없거나 빈 값=티어 끔),
-  `HYMT2_VEC_REUSE_SIM`(0.985)/`HYMT2_VEC_REF_SIM`(0.88).
+  `HYMT2_VEC_REUSE_SIM`(0.985)/`HYMT2_VEC_REF_SIM`(0.88),
+  `HYMT2_EXCLUSIVE`(1=로컬 LLM 한 번에 한 모델·스필/수리 흐름, 0=즉시 상향),
+  `HYMT2_CACHE`/`HYMT2_SPILL`(기본 tmp/hymt2-cache/big.jsonl · tmp/hymt2-spill/pending.jsonl).
 - 번역기 모듈은 `translators/` 디렉터리 마운트로 finish 컨테이너에 자동 반영
   (translate_gui.py FINISH_MOUNTS).
 

@@ -22,7 +22,7 @@ def _fake_resp(content: str):
 @pytest.fixture
 def make_translator(tmp_path, monkeypatch):
     def _make(tm_lines=(), glossary_lines=(), big=True, glm=False, vec=None,
-              emb_model='test-emb', build_model=None):
+              emb_model='test-emb', build_model=None, exclusive=False, cache_lines=()):
         tm = tmp_path / 'tm.tsv'
         tm.write_text('\n'.join(tm_lines) + '\n', encoding='utf-8')
         gl = tmp_path / 'glossary.tsv'
@@ -33,6 +33,13 @@ def make_translator(tmp_path, monkeypatch):
         monkeypatch.setenv('HYMT2_BIG_BASE', 'http://fake-big:1/v1' if big else '')
         monkeypatch.setenv('HYMT2_GL_FALLBACK', '1' if glm else '0')
         monkeypatch.setenv('HYMT2_CONCURRENCY', '4')
+        # 기본은 즉시 상향(기존 테스트 동작 유지) — 배타 테스트는 exclusive=True
+        monkeypatch.setenv('HYMT2_EXCLUSIVE', '1' if exclusive else '0')
+        monkeypatch.setenv('HYMT2_CACHE', str(tmp_path / 'cache.jsonl'))
+        monkeypatch.setenv('HYMT2_SPILL', str(tmp_path / 'spill.jsonl'))
+        if cache_lines:
+            (tmp_path / 'cache.jsonl').write_text(
+                '\n'.join(cache_lines) + '\n', encoding='utf-8')
         monkeypatch.setenv('HYMT2_EMB_BASE', 'http://fake-emb:1/v1')
         monkeypatch.setenv('HYMT2_EMB_MODEL', emb_model)
         if vec is not None:
@@ -194,6 +201,53 @@ def _fake_embed(vectors):
         emb = np.array(vectors, dtype=np.float32)
         return emb / np.linalg.norm(emb, axis=1, keepdims=True)
     return _embed
+
+
+@pytest.mark.asyncio
+async def test_exclusive_spills_instead_of_big(make_translator):
+    # 배타 모드(기본): 소형 실패 시 즉시 상향 없이 스플 적립 — 수리 패스가 처리
+    t = make_translator(exclusive=True)
+    t._client_small.chat.completions.create = AsyncMock(
+        side_effect=[_fake_resp('どうした'), _fake_resp('どうした')])
+    t._client_big.chat.completions.create = AsyncMock(return_value=_fake_resp('어떡해'))
+    out = await t._translate('auto', 'Korean', ['どうした'])
+    assert out == [''] and t._stat['spill'] == 1 and t._stat['big'] == 0
+    t._client_big.chat.completions.create.assert_not_awaited()
+    import json as _json
+    rows = [_json.loads(l) for l in open(t._spill_path, encoding='utf-8') if l.strip()]
+    assert rows[0]['q'] == 'どうした'
+
+
+@pytest.mark.asyncio
+async def test_cache_tier_hit(make_translator):
+    # 수리 캐시에 있는 원문은 LLM 호출 없이 재사용 (Tier 0.6)
+    t = make_translator(exclusive=True, cache_lines=['{"q": "行こう", "trans": "가자"}'])
+    t._client_small.chat.completions.create = AsyncMock(return_value=_fake_resp('x'))
+    out = await t._translate('auto', 'Korean', ['行こう'])
+    assert out == ['가자'] and t._stat['cache'] == 1
+    t._client_small.chat.completions.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_repair_run(make_translator, monkeypatch):
+    # 스플 2건 → 대형 1건 성공(캐시 추가)·1건 실패(스필 유지)
+    t0 = make_translator(exclusive=True)
+    with open(t0._spill_path, 'w', encoding='utf-8') as f:
+        f.write('{"q": "行こう", "refs": []}\n{"q": "来るぞ", "refs": [["行こう", "가자"]]}\n')
+    from manga_translator.translators import hymt2_repair
+    from manga_translator.translators.hymt2 import HyMT2Translator as H
+
+    async def fake_big(self, to_lang, query, refs=None):
+        return '간다' if query == '来るぞ' else None
+
+    monkeypatch.setattr(H, '_big', fake_big)
+    st = await hymt2_repair.run()
+    assert st == {'spill': 2, 'todo': 2, 'ok': 1, 'fail': 1}
+    import json as _json
+    cache_rows = [_json.loads(l) for l in open(t0._cache_path, encoding='utf-8') if l.strip()]
+    assert cache_rows[-1]['trans'] == '간다'
+    spill_rows = [_json.loads(l) for l in open(t0._spill_path, encoding='utf-8') if l.strip()]
+    assert [r['q'] for r in spill_rows] == ['行こう']
 
 
 @pytest.mark.asyncio

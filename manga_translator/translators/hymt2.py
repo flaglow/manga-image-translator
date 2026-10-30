@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 from typing import Dict, List, Optional, Tuple
@@ -56,13 +57,18 @@ class HyMT2Translator(CommonTranslator):
         self._big_base = os.environ.get('HYMT2_BIG_BASE', 'http://localhost:8012/v1')
         self._small_model = os.environ.get('HYMT2_SMALL_MODEL', 'hymt2-1.8b')
         self._big_model = os.environ.get('HYMT2_BIG_MODEL', 'hymt2-30b')
+        # 배타 모드(기본): 로컬 LLM은 한 번에 한 모델만 — 대형 즉시 상향 대신 스플 파일에
+        # 적립하고 수리 패스(hymt2_repair.sh)가 [소형 정지→대형→스필 처리→소형 재기동]으로
+        # 스왑 실행, 결과는 캐시에 남아 이후 번역에서 우선 재사용된다.
+        self._exclusive = os.environ.get('HYMT2_EXCLUSIVE', '1') != '0'
         self._escalate_big = bool(self._big_base) and os.environ.get('HYMT2_ESCALATE', '1') != '0'
         self._glm_fallback = os.environ.get('HYMT2_GL_FALLBACK', '') == '1'
         self._timeout = float(os.environ.get('HYMT2_TIMEOUT', '') or self._TIMEOUT)
         self._big_timeout = float(os.environ.get('HYMT2_BIG_TIMEOUT', '') or self._BIG_TIMEOUT)
         self._sem = asyncio.Semaphore(int(os.environ.get('HYMT2_CONCURRENCY', '16')))
         self._client_small = openai.AsyncOpenAI(
-            api_key='local', base_url=self._small_base, timeout=self._timeout)
+            api_key='local', base_url=self._small_base, timeout=self._timeout
+        ) if self._small_base else None  # 빈 base = 소형 스킵(대형 단독 평가·수리 등)
         self._client_big = openai.AsyncOpenAI(
             api_key='local', base_url=self._big_base, timeout=self._big_timeout)
         self._client_glm = None
@@ -74,6 +80,10 @@ class HyMT2Translator(CommonTranslator):
         self._tm = self._load_tm(os.environ.get('HYMT2_TM', 'configs/hymt2-tm.tsv'))
         self._glossary = self._load_glossary(os.environ.get(
             'HYMT2_GLOSSARY', 'configs/hdtrans-userdict.txt'))
+        # 배타 모드 수리 캐시/스필 — tmp/ 는 컨테이너에 마운트돼 공유된다
+        self._cache_path = os.environ.get('HYMT2_CACHE', 'tmp/hymt2-cache/big.jsonl')
+        self._spill_path = os.environ.get('HYMT2_SPILL', 'tmp/hymt2-spill/pending.jsonl')
+        self._cache = self._load_cache(self._cache_path)
 
         # 벡터 근접검색 — DB(configs/hymt2-vec/)가 있고 임베딩 API가 설정돼 있을 때만 동작
         self._emb_base = os.environ.get('HYMT2_EMB_BASE', 'https://df.flaglow.cc/embedder/v1')
@@ -164,6 +174,49 @@ class HyMT2Translator(CommonTranslator):
         self.logger.info(f'용어집 로드: {len(entries)} 엔트리 ({path})')
         return entries
 
+    # ── 배타 모드: 수리 캐시·스필 ───────────────────────────────
+
+    def _load_cache(self, path: str) -> Dict[str, str]:
+        """hymt2_repair 가 채운 대형 번역 캐시 (JSONL: q / trans) — norm(q) → 번역."""
+        if not path or not os.path.isfile(path):
+            return {}
+        cache = {}
+        try:
+            with open(path, encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except ValueError:
+                        continue
+                    q, trans = row.get('q'), row.get('trans')
+                    if q and trans:
+                        cache.setdefault(self._norm(q), trans)
+        except OSError as e:
+            self.logger.warning(f'수리 캐시 로드 실패 (무시): {e}')
+        if cache:
+            self.logger.info(f'수리 캐시 로드: {len(cache)} 엔트리 ({path})')
+        return cache
+
+    def _spill(self, queries: List[str], vec_refs: Dict[int, List[Tuple[str, str]]],
+               pending: List[int]) -> int:
+        """대형이 필요한 세그먼트를 스플 파일에 적립 — 수리 패스(hymt2_repair.sh)가 소비."""
+        rows = []
+        for i in pending:
+            refs = [[k, v] for k, v in (vec_refs.get(i) or [])]
+            rows.append(json.dumps({'q': queries[i], 'refs': refs}, ensure_ascii=False))
+        try:
+            os.makedirs(os.path.dirname(self._spill_path) or '.', exist_ok=True)
+            with open(self._spill_path, 'a', encoding='utf-8') as f:
+                f.write('\n'.join(rows) + '\n')
+        except OSError as e:
+            self.logger.warning(f'스필 적립 실패 (결과는 빈 칸으로 진행): {e}')
+            return 0
+        self._stat['spill'] = self._stat.get('spill', 0) + len(rows)
+        return len(rows)
+
     # ── 벡터 근접검색 (Tier 0.5) ────────────────────────────────
 
     def _load_vec(self, vec_dir: str):
@@ -174,7 +227,6 @@ class HyMT2Translator(CommonTranslator):
         BUILD.json 의 모델명이 HYMT2_EMB_MODEL 과 다르면 쿼리 벡터 공간이 어긋나므로
         티어를 비활성화한다. 디렉터리가 없어도 None (자동 비활성).
         """
-        import json
         emb_path = os.path.join(vec_dir, 'emb.npy')
         meta_path = os.path.join(vec_dir, 'meta.tsv')
         build_path = os.path.join(vec_dir, 'BUILD.json')
@@ -372,8 +424,9 @@ class HyMT2Translator(CommonTranslator):
     # ── 메인 ────────────────────────────────────────────────────
 
     async def _translate(self, from_lang: str, to_lang: str, queries: List[str]) -> List[str]:
-        self._stat = {'tm': 0, 'vec_reuse': 0, 'vec_ref': 0, 'small': 0, 'big': 0, 'glm': 0,
-                      'empty': 0, 'small_fail': 0, 'small_retry_ok': 0}
+        self._stat = {'tm': 0, 'vec_reuse': 0, 'vec_ref': 0, 'cache': 0, 'small': 0,
+                      'big': 0, 'glm': 0, 'empty': 0, 'spill': 0,
+                      'small_fail': 0, 'small_retry_ok': 0}
         results: List[Optional[str]] = [None] * len(queries)
         tier_of: Dict[int, str] = {}
 
@@ -407,8 +460,18 @@ class HyMT2Translator(CommonTranslator):
             except Exception as e:
                 self.logger.warning(f'벡터 티어 건너뜀 (API?): {e}')
 
+        # Tier 0.6 — 수리 캐시 (배타 모드에서 hymt2_repair가 채운 대형 번역)
+        if pending and self._cache:
+            for i in list(pending):
+                hit = self._cache.get(self._norm(queries[i]))
+                if hit is not None:
+                    results[i] = hit
+                    tier_of[i] = 'cache'
+                    self._stat['cache'] += 1
+            pending = [i for i in pending if results[i] is None]
+
         # Tier 1 — 1.8B 전수 병렬 (소형 선처리: 대형은 이 웨이브가 끝난 뒤)
-        if pending:
+        if pending and self._client_small is not None:
             small_results = await asyncio.gather(
                 *(self._small(to_lang, queries[i], vec_refs.get(i)) for i in pending))
             for i, trans in zip(pending, small_results):
@@ -418,8 +481,9 @@ class HyMT2Translator(CommonTranslator):
                     self._stat['small'] += 1
             pending = [i for i in pending if results[i] is None]
 
-        # Tier 2 — 30B 실패분 일괄
-        if pending and self._escalate_big:
+        # Tier 2 — 30B 실패분 일괄. 배타 모드(기본)에서는 즉시 상향하지 않고
+        # 스플에 적립 — 수리 패스(hymt2_repair.sh)가 소형과 맞바꿔 처리한다.
+        if pending and self._escalate_big and not self._exclusive:
             big_results = await asyncio.gather(
                 *(self._big(to_lang, queries[i], vec_refs.get(i)) for i in pending))
             for i, trans in zip(pending, big_results):
@@ -428,6 +492,8 @@ class HyMT2Translator(CommonTranslator):
                     tier_of[i] = 'big'
                     self._stat['big'] += 1
             pending = [i for i in pending if results[i] is None]
+        if pending and self._escalate_big and self._exclusive:
+            self._spill(queries, vec_refs, pending)
 
         # 비상 폴백 — GLM 1회
         if pending and self._client_glm is not None:
@@ -452,11 +518,13 @@ class HyMT2Translator(CommonTranslator):
         ]
 
         n = len(queries)
-        resolved_small = self._stat['tm'] + self._stat['vec_reuse'] + self._stat['small']
+        resolved_small = (self._stat['tm'] + self._stat['vec_reuse']
+                          + self._stat['cache'] + self._stat['small'])
         self.logger.info(
             f'HyMT2 요약: 총 {n} — TM {self._stat["tm"]}, 벡터재사용 {self._stat["vec_reuse"]}, '
-            f'1.8B {self._stat["small"]} (참조주입 {self._stat["vec_ref"]}, '
-            f'재시도 회수 {self._stat["small_retry_ok"]}, 실패 {self._stat["small_fail"]}), '
-            f'30B {self._stat["big"]}, GLM {self._stat["glm"]}, 빈칸 {self._stat["empty"]} '
+            f'수리캐시 {self._stat["cache"]}, 1.8B {self._stat["small"]} '
+            f'(참조주입 {self._stat["vec_ref"]}, 재시도 회수 {self._stat["small_retry_ok"]}, '
+            f'실패 {self._stat["small_fail"]}), 30B {self._stat["big"]}, GLM {self._stat["glm"]}, '
+            f'스필 {self._stat["spill"]}, 빈칸 {self._stat["empty"]} '
             f'| ≤1.8B 해결률 {resolved_small * 100 // max(n, 1)}%')
         return [r or '' for r in results]
